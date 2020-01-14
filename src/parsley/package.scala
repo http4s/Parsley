@@ -12,7 +12,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[A](p: Parsley[A], input: String): Result[A] = runParser[A](p, input.toCharArray)
+    def runParser[Tok, A](p: Parsley[Tok, A], input: String): Result[A] = runParser[Tok, A](p, input.toCharArray)
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * array, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -20,7 +20,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[A](p: Parsley[A], input: Array[Char]): Result[A] = new Context(p.threadSafeInstrs, input).runParser()
+    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Char]): Result[A] = new Context(p.threadSafeInstrs, input).runParser()
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * string, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -29,7 +29,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[A](p: Parsley[A], input: String, ctx: Context): Result[A] = runParser[A](p, input.toCharArray, ctx)
+    def runParser[Tok, A](p: Parsley[Tok, A], input: String, ctx: Context): Result[A] = runParser[Tok, A](p, input.toCharArray, ctx)
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * array, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -38,7 +38,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[A](p: Parsley[A], input: Array[Char], ctx: Context): Result[A] = ctx(p.threadSafeInstrs, input).runParser()
+    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Char], ctx: Context): Result[A] = ctx(p.threadSafeInstrs, input).runParser()
     
     // Public API - With context reuse
     /** This method allows you to run a parser with a cached context, which improves performance. 
@@ -46,15 +46,15 @@ package object parsley
      *  cause issues with multi-threaded execution of parsers. In order to mitigate these issues,
      *  each thread should request its own context with `parsley.giveContext`. This value may be
      *  implicit for convenience.*/
-    def runParserFastUnsafe[A](p: Parsley[A], input: String)(implicit ctx: Context = internalCtx): Result[A] = runParserFastUnsafe[A](p, input.toCharArray, ctx)
-    private [parsley] def runParserFastUnsafe[A](p: Parsley[A], input: Array[Char], ctx: Context): Result[A] = ctx(p.instrs, input).runParser()
+    def runParserFastUnsafe[Tok, A](p: Parsley[Tok, A], input: String)(implicit ctx: Context = internalCtx): Result[A] = runParserFastUnsafe[Tok, A](p, input.toCharArray, ctx)
+    private [parsley] def runParserFastUnsafe[Tok, A](p: Parsley[Tok, A], input: Array[Char], ctx: Context): Result[A] = ctx(p.instrs, input).runParser()
 
     /**
       * This method allows you to run parsers in parallel in a thread-safe fashion. This is safer
       * than runParser in the case where the parser maintains internal states, but is otherwise
       * likely slower for serial executions of the same parser.
       */
-    def runParserThreadSafe[A](p: Parsley[A], input: String, ctx: Context = giveContext): Result[A] = ctx(p.threadSafeInstrs, input.toCharArray).runParser()
+    def runParserThreadSafe[Tok, A](p: Parsley[Tok, A], input: String, ctx: Context = giveContext): Result[A] = ctx(p.threadSafeInstrs, input.toCharArray).runParser()
 
     /**
       * This function returns a fresh Context. Contexts are used by the parsers to store their state.

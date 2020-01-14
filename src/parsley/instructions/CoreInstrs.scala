@@ -179,7 +179,7 @@ private [parsley] final class DynCall[-A](f: A => Array[Instr], expected: Unsafe
 }
 
 // Control Flow
-private [parsley] final class Call(p: Parsley[_], expected: UnsafeOption[String]) extends Instr
+private [parsley] final class Call(p: Parsley[_, _], expected: UnsafeOption[String]) extends Instr
 {
     private [this] var instrs: UnsafeOption[Array[Instr]] = _
     private [this] var pindices: Array[Int] = _

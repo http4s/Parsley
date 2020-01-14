@@ -2,7 +2,7 @@ package parsley
 
 import scala.language.{higherKinds, reflectiveCalls}
 
-private [parsley] abstract class ContOps[Cont[_, +_]]
+private [parsley] abstract class ContOps[Cont[_, _]]
 {
     def wrap[R, A](x: A): Cont[R, A]
     def unwrap[R](wrapped: Cont[R, R]): R
@@ -13,7 +13,7 @@ private [parsley] abstract class ContOps[Cont[_, +_]]
 }
 private [parsley] object ContOps
 {
-    implicit class ContAdapter[R, +A, Cont[_, +_]](c: =>Cont[R, A])(implicit ops: ContOps[Cont])
+    implicit class ContAdapter[R, A, Cont[_, _]](c: =>Cont[R, A])(implicit ops: ContOps[Cont])
     {
         def map[B](f: A => B): Cont[R, B] = ops.map(c, f)
         def flatMap[B](f: A => Cont[R, B]): Cont[R, B] = ops.flatMap(c, f)
@@ -28,7 +28,7 @@ private [parsley] object ContOps
         catch { case _: StackOverflowError => task(Cont.ops.asInstanceOf[GenOps]) }
 }
 
-private [parsley] class Cont[R, +A](val cont: (A => Bounce[R]) => Bounce[R]) extends AnyVal
+private [parsley] class Cont[R, A](val cont: (A => Bounce[R]) => Bounce[R]) extends AnyVal
 private [parsley] object Cont
 {
     implicit val ops: ContOps[Cont] = new ContOps[Cont]

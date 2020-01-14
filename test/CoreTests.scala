@@ -81,9 +81,9 @@ class CoreTests extends ParsleyTest
 
     they must "obey the composition law: pure (.) <*> u <*> v <*> w = u <*> (v <*> w)" in
     {
-        val u: Parsley[Int => Int] = 'a' #> add1
-        val v: Parsley[Int => Int] = 'b' #> mult5
-        val w: Parsley[Int] = 'c' #> 7
+        val u: Parsley[Char, Int => Int] = 'a' #> add1
+        val v: Parsley[Char, Int => Int] = 'b' #> mult5
+        val w: Parsley[Char, Int] = 'c' #> 7
         val compose: (Int => Int) => (Int => Int) => Int => Int = f => g => f.compose(g)
         runParser(pure(compose) <*> u <*> v <*> w, "abc") should equal (runParser(u <*> (v <*> w), "abc"))
     }
@@ -99,8 +99,8 @@ class CoreTests extends ParsleyTest
     }
     they must "obey the associativity law: (m >>= f) >>= g = m >>= (x => f x >>= g)" in
     {
-        val f: Int => Parsley[Int] = x => pure(x + 1)
-        val g: Int => Parsley[Int] = x => pure(x/3)
+        val f: Int => Parsley[Any, Int] = x => pure(x + 1)
+        val g: Int => Parsley[Any, Int] = x => pure(x/3)
         val m = '1' #> 4
         runParser((m >>= f) >>= g, "1") should equal (runParser(m >>= (x => f(x) >>= g), "1"))
     }
@@ -164,7 +164,7 @@ class CoreTests extends ParsleyTest
         val r2 = Var(1)
         val p = (put(r1, 5)
               *> put(r2, 7)
-              *> put(r1, lift2[Int, Int, Int](_+_, get[Int](r1), get[Int](r2)))
+              *> put(r1, lift2[Any, Int, Int, Int](_+_, get[Int](r1), get[Int](r2)))
               *> (get[Int](r1) <~> get[Int](r2)))
         runParser(p, "") should be (Success((12, 7)))
     }
@@ -189,7 +189,7 @@ class CoreTests extends ParsleyTest
 
     "stack overflows" should "not occur" in
     {
-        def repeat(n: Int, p: Parsley[Char]): Parsley[Char] =
+        def repeat[Tok](n: Int, p: Parsley[Tok, Char]): Parsley[Tok, Char] =
         {
             if (n > 0) p *> repeat(n-1, p)
             else p
@@ -198,17 +198,17 @@ class CoreTests extends ParsleyTest
     }
     they should "not be thrown by recursive parsers" in
     {
-        lazy val p: Parsley[Int] = p.map((x: Int) => x+1)
-        def many_[A](p: Parsley[A]): Parsley[List[A]] =
+        lazy val p: Parsley[Any, Int] = p.map((x: Int) => x+1)
+        def many_[Tok, A](p: Parsley[Tok, A]): Parsley[Tok, List[A]] =
         {
-            lazy val manyp: Parsley[List[A]] = (p <::> manyp) </> Nil
+            lazy val manyp: Parsley[Tok, List[A]] = (p <::> manyp) </> Nil
             manyp
         }
         noException should be thrownBy runParser(many_('a' *> p), "")
     }
     they should "not be caused by bind optimisation" in
     {
-        lazy val uhoh: Parsley[Unit] = 'a' >>= (_ => uhoh)
+        lazy val uhoh: Parsley[Char, Unit] = 'a' >>= (_ => uhoh)
         noException should be thrownBy runParser(uhoh, "a")
     }
 

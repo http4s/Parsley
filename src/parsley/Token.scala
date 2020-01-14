@@ -59,7 +59,7 @@ sealed trait Impl
   * The implementation provided is a parser which parses the required token.
   * @param p The parser which will parse the token
   */
-final case class Parser(p: Parsley[_]) extends Impl
+final case class Parser(p: Parsley[Char, _]) extends Impl
 /**
   * The implementation provided is a function which matches on the input streams characters
   * @param f The predicate that input tokens are tested against
@@ -108,7 +108,7 @@ final class TokenParser(lang: LanguageDef)
      * fail on identifiers that are reserved words (i.e. keywords). Legal identifier characters and
      * keywords are defined in the `LanguageDef` provided to the token parser. An identifier is treated
      * as a single token using `attempt`.*/
-    lazy val identifier: Parsley[String] = (lang.identStart, lang.identLetter) match
+    lazy val identifier: Parsley[Char, String] = (lang.identStart, lang.identLetter) match
     {
         case (BitSetImpl(start), BitSetImpl(letter)) => lexeme(new DeepToken.Identifier(start, letter, theReservedNames))
         case (BitSetImpl(start), Predicate(letter)) => lexeme(new DeepToken.Identifier(start, letter, theReservedNames))
@@ -119,18 +119,19 @@ final class TokenParser(lang: LanguageDef)
 
     /**The lexeme parser `keyword(name)` parses the symbol `name`, but it also checks that the `name`
      * is not a prefix of a valid identifier. A `keyword` is treated as a single token using `attempt`.*/
-    def keyword(name: String): Parsley[Unit] = lang.identLetter match
+    def keyword(name: String): Parsley[Char, Unit] = lang.identLetter match
     {
         case BitSetImpl(letter) => lexeme(new DeepToken.Keyword(name, letter, lang.caseSensitive) *> unit)
         case Predicate(letter) => lexeme(new DeepToken.Keyword(name, letter, lang.caseSensitive) *> unit)
         case _ => lexeme(attempt(caseString(name) *> notFollowedBy(identLetter) ? ("end of " + name)))
     }
 
-    private def caseString(name: String): Parsley[String] =
+    private def caseString(name: String): Parsley[Char, String] =
     {
-        def caseChar(c: Char): Parsley[Char] = if (c.isLetter) c.toLower <|> c.toUpper else c
+        def caseChar(c: Char): Parsley[Char, Char] = if (c.isLetter) c.toLower <|> c.toUpper else c
         if (lang.caseSensitive) name
-        else name.foldRight(pure(name))((c, p) => caseChar(c) *> p) ? name
+        // TODO This type should not be necessary, the inference needs improving!
+        else name.foldRight[Parsley[Char, String]](pure(name))((c, p) => caseChar(c) *> p) ? name
     }
     private def isReservedName(name: String): Boolean = theReservedNames.contains(if (lang.caseSensitive) name else name.toLowerCase)
     private val theReservedNames =  if (lang.caseSensitive) lang.keywords else lang.keywords.map(_.toLowerCase)
@@ -143,7 +144,7 @@ final class TokenParser(lang: LanguageDef)
      * will fail on any operators that are reserved operators. Legal operator characters and
      * reserved operators are defined in the `LanguageDef` provided to the token parser. A
      * `userOp` is treated as a single token using `attempt`.*/
-    lazy val userOp: Parsley[String] = (lang.opStart, lang.opLetter) match
+    lazy val userOp: Parsley[Char, String] = (lang.opStart, lang.opLetter) match
     {
         case (BitSetImpl(start), BitSetImpl(letter)) => lexeme(new DeepToken.UserOp(start, letter, lang.operators))
         case (BitSetImpl(start), Predicate(letter)) => lexeme(new DeepToken.UserOp(start, letter, lang.operators))
@@ -155,7 +156,7 @@ final class TokenParser(lang: LanguageDef)
     /**This non-lexeme parser parses a reserved operator. Returns the name of the operator.
      * Legal operator characters and reserved operators are defined in the `LanguageDef`
      * provided to the token parser. A `reservedOp_` is treated as a single token using `attempt`.*/
-    lazy val reservedOp_ : Parsley[String] = (lang.opStart, lang.opLetter) match
+    lazy val reservedOp_ : Parsley[Char, String] = (lang.opStart, lang.opLetter) match
     {
         case (BitSetImpl(start), BitSetImpl(letter)) => new DeepToken.ReservedOp(start, letter, lang.operators)
         case (BitSetImpl(start), Predicate(letter)) => new DeepToken.ReservedOp(start, letter, lang.operators)
@@ -167,17 +168,17 @@ final class TokenParser(lang: LanguageDef)
     /**This lexeme parser parses a reserved operator. Returns the name of the operator. Legal
      * operator characters and reserved operators are defined in the `LanguageDef` provided
      * to the token parser. A `reservedOp` is treated as a single token using `attempt`.*/
-    lazy val reservedOp: Parsley[String] = lexeme(reservedOp_)
+    lazy val reservedOp: Parsley[Char, String] = lexeme(reservedOp_)
 
     /**The lexeme parser `operator(name)` parses the symbol `name`, but also checks that the `name`
      * is not the prefix of a valid operator. An `operator` is treated as a single token using
      * `attempt`.*/
-    def operator(name: String): Parsley[Unit] = lexeme(operator_(name))
+    def operator(name: String): Parsley[Char, Unit] = lexeme(operator_(name))
 
     /**The non-lexeme parser `operator_(name)` parses the symbol `name`, but also checks that the `name`
      * is not the prefix of a valid operator. An `operator` is treated as a single token using
      * `attempt`.*/
-    def operator_(name: String): Parsley[Unit] = lang.opLetter match
+    def operator_(name: String): Parsley[Char, Unit] = lang.opLetter match
     {
         case BitSetImpl(letter) => new DeepToken.Operator(name, letter) *> unit
         case Predicate(letter) => new DeepToken.Operator(name, letter) *> unit
@@ -187,12 +188,12 @@ final class TokenParser(lang: LanguageDef)
     /**The lexeme parser `maxOp(name)` parses the symbol `name`, but also checks that the `name`
       * is not part of a larger reserved operator. An `operator` is treated as a single token using
       * `attempt`.*/
-    def maxOp(name: String): Parsley[Unit] = lexeme(maxOp_(name))
+    def maxOp(name: String): Parsley[Char, Unit] = lexeme(maxOp_(name))
 
     /**The non-lexeme parser `maxOp_(name)` parses the symbol `name`, but also checks that the `name`
       * is not part of a larger reserved operator. An `operator` is treated as a single token using
       * `attempt`.*/
-    def maxOp_(name: String): Parsley[Unit] = new DeepToken.MaxOp(name, lang.operators) *> unit
+    def maxOp_(name: String): Parsley[Char, Unit] = new DeepToken.MaxOp(name, lang.operators) *> unit
 
     private def isReservedOp(op: String): Boolean = lang.operators.contains(op)
     private lazy val opStart = toParser(lang.opStart)
@@ -204,19 +205,19 @@ final class TokenParser(lang: LanguageDef)
      * This parser deals correctly with escape sequences. The literal character is parsed according
      * to the grammar rules defined in the Haskell report (which matches most programming languages
      * quite closely).*/
-    lazy val charLiteral: Parsley[Char] = lexeme(between('\'', '\'' ? "end of character", characterChar)) ? "character"
+    lazy val charLiteral: Parsley[Char, Char] = lexeme(between('\'', '\'' ? "end of character", characterChar)) ? "character"
 
     /**This lexeme parser parses a literal string. Returns the literal string value. This parser
      * deals correctly with escape sequences and gaps. The literal string is parsed according to
      * the grammar rules defined in the Haskell report (which matches most programming languages
      * quite closely).*/
-    lazy val stringLiteral: Parsley[String] = lexeme(stringLiteral_)
+    lazy val stringLiteral: Parsley[Char, String] = lexeme(stringLiteral_)
 
     /**This non-lexeme parser parses a literal string. Returns the literal string value. This parser
      * deals correctly with escape sequences and gaps. The literal string is parsed according to
      * the grammar rules defined in the Haskell report (which matches most programming languages
      * quite closely).*/
-    lazy val stringLiteral_ : Parsley[String] = lang.space match
+    lazy val stringLiteral_ : Parsley[Char, String] = lang.space match
     {
         case BitSetImpl(ws) => new DeepToken.StringLiteral(ws)
         case Predicate(ws) => new DeepToken.StringLiteral(ws)
@@ -226,7 +227,7 @@ final class TokenParser(lang: LanguageDef)
     /**This non-lexeme parser parses a string in a raw fashion. The escape characters in the string
      * remain untouched. While escaped quotes do not end the string, they remain as \" in the result
      * instead of becoming a quote character. Does not support string gaps. */
-    lazy val rawStringLiteral: Parsley[String] = new DeepToken.RawStringLiteral
+    lazy val rawStringLiteral: Parsley[Char, String] = new DeepToken.RawStringLiteral
 
     private lazy val escapeCode = new DeepToken.Escape
     private lazy val charEscape = '\\' *> escapeCode
@@ -236,44 +237,44 @@ final class TokenParser(lang: LanguageDef)
     private val escapeEmpty = '&'
     private lazy val escapeGap = skipSome(space) *> '\\' ? "end of string gap"
     private lazy val stringLetter = satisfy(c => (c != '"') && (c != '\\') && (c > '\u0016'))
-    private lazy val stringEscape: Parsley[Option[Char]] =
+    private lazy val stringEscape: Parsley[Char, Option[Char]] =
     {
         '\\' *> (escapeGap #> None
              <|> escapeEmpty #> None
              <|> (escapeCode <#> (Some(_))))
     }
-    private lazy val stringChar: Parsley[Option[Char]] = ((stringLetter <#> (Some(_))) <|> stringEscape) ? "string character"
+    private lazy val stringChar: Parsley[Char, Option[Char]] = ((stringLetter <#> (Some(_))) <|> stringEscape) ? "string character"
 
     // Numbers
     /**This lexeme parser parses a natural number (a positive whole number). Returns the value of
      * the number. The number can specified in `decimal`, `hexadecimal` or `octal`. The number is
      * parsed according to the grammar rules in the Haskell report.*/
-    lazy val natural: Parsley[Int] = lexeme(nat)
+    lazy val natural: Parsley[Char, Int] = lexeme(nat)
 
     /**This lexeme parser parses an integer (a whole number). This parser is like `natural` except
      * that it can be prefixed with a sign (i.e '-' or '+'). Returns the value of the number. The
      * number can be specified in `decimal`, `hexadecimal` or `octal`. The number is parsed
      * according to the grammar rules in the haskell report.*/
-    lazy val integer: Parsley[Int] = lexeme(int) ? "integer"
+    lazy val integer: Parsley[Char, Int] = lexeme(int) ? "integer"
 
     /**This lexeme parser parses a floating point value. Returns the value of the number. The number
      * is parsed according to the grammar rules defined in the Haskell report.*/
-    lazy val unsignedFloat: Parsley[Double] = lexeme(floating)
+    lazy val unsignedFloat: Parsley[Char, Double] = lexeme(floating)
 
     /**This lexeme parser parses a floating point value. Returns the value of the number. The number
      * is parsed according to the grammar rules defined in the Haskell report. Accepts an optional
      * '+' or '-' sign.*/
-    lazy val float: Parsley[Double] = lexeme(signedFloating) ? "float"
+    lazy val float: Parsley[Char, Double] = lexeme(signedFloating) ? "float"
 
     /**This lexeme parser parses either `integer` or `float`. Returns the value of the number. This
      * parser deals with any overlap in the grammar rules for naturals and floats. The number is
      * parsed according to the grammar rules defined in the Haskell report.*/
-    lazy val number: Parsley[Either[Int, Double]] = lexeme(number_) ? "number"
+    lazy val number: Parsley[Char, Either[Int, Double]] = lexeme(number_) ? "number"
 
     /**This lexeme parser parses either `natural` or `unsigned float`. Returns the value of the number. This
       * parser deals with any overlap in the grammar rules for naturals and floats. The number is
       * parsed according to the grammar rules defined in the Haskell report.*/
-    lazy val naturalOrFloat: Parsley[Either[Int, Double]] = lexeme(natFloat) ? "unsigned number"
+    lazy val naturalOrFloat: Parsley[Char, Either[Int, Double]] = lexeme(natFloat) ? "unsigned number"
 
     private lazy val decimal_ = number(10, digit)
     private lazy val hexadecimal_ = satisfy(c => c == 'x' || c == 'X') *> number(16, hexDigit)
@@ -294,36 +295,36 @@ final class TokenParser(lang: LanguageDef)
     private lazy val int = sign(IntType) <*> nat
 
     /**Parses a positive whole number in the decimal system. Returns the value of the number.*/
-    lazy val decimal: Parsley[Int] = lexeme(decimal_)
+    lazy val decimal: Parsley[Char, Int] = lexeme(decimal_)
 
     /**Parses a positive whole number in the hexadecimal system. The number should be prefixed with
      * "0x" or "0X". Returns the value of the number.*/
-    lazy val hexadecimal: Parsley[Int] = lexeme('0' *> hexadecimal_)
+    lazy val hexadecimal: Parsley[Char, Int] = lexeme('0' *> hexadecimal_)
 
     /**Parses a positive whole number in the octal system. The number should be prefixed with "0o"
      * or "0O". Returns the value of the number.*/
-    lazy val octal: Parsley[Int] = lexeme('0' *> octal_)
+    lazy val octal: Parsley[Char, Int] = lexeme('0' *> octal_)
 
-    private def number(base: Int, baseDigit: Parsley[Char]): Parsley[Int] =
+    private def number(base: Int, baseDigit: Parsley[Char, Char]): Parsley[Char, Int] =
     {
         for (digits <- some(baseDigit)) yield digits.foldLeft(0)((x, d) => base*x + d.asDigit)
     }
 
     // White space & symbols
     /**Lexeme parser `symbol(s)` parses `string(s)` and skips trailing white space.*/
-    def symbol(name: String): Parsley[String] = lexeme[String](name)
+    def symbol(name: String): Parsley[Char, String] = lexeme[String](name)
     /**Lexeme parser `symbol(c)` parses `char(c)` and skips trailing white space.*/
-    def symbol(name: Char): Parsley[Char] = lexeme[Char](name)
+    def symbol(name: Char): Parsley[Char, Char] = lexeme[Char](name)
 
     /**Like `symbol`, but treats it as a single token using `attempt`. Only useful for
      * strings, since characters are already single token.*/
-    def symbol_(name: String): Parsley[String] = attempt(symbol(name))
+    def symbol_(name: String): Parsley[Char, String] = attempt(symbol(name))
 
     /**`lexeme(p)` first applies parser `p` and then the `whiteSpace` parser, returning the value of
      * `p`. Every lexical token (lexeme) is defined using `lexeme`, this way every parse starts at a
      * point without white space. The only point where the `whiteSpace` parser should be called
      * explicitly is the start of the main parser in order to skip any leading white space.*/
-    def lexeme[A](p: =>Parsley[A]): Parsley[A] = p <* whiteSpace
+    def lexeme[A](p: =>Parsley[Char, A]): Parsley[Char, A] = p <* whiteSpace
 
     private lazy val space = toParser(lang.space)
 
@@ -331,13 +332,13 @@ final class TokenParser(lang: LanguageDef)
      * provided by the `LanguageDef`), a line comment or a block (multi-line) comment. Block
      * comments may be nested. How comments are started and ended is defined in the `LanguageDef`
      * that is provided to the token parser.*/
-    lazy val whiteSpace: Parsley[Unit] = whiteSpace_(lang.space)
+    lazy val whiteSpace: Parsley[Char, Unit] = whiteSpace_(lang.space)
 
     /**Parses any white space. White space consists of zero or more occurrences of a `space` (as
      * provided by the parameter), a line comment or a block (multi-line) comment. Block
      * comments may be nested. How comments are started and ended is defined in the `LanguageDef`
      * that is provided to the token parser.*/
-    val whiteSpace_ : Impl => Parsley[Unit] =
+    val whiteSpace_ : Impl => Parsley[Char, Unit] =
     {
         case BitSetImpl(ws) => new DeepToken.WhiteSpace(ws, lang.commentStart, lang.commentEnd, lang.commentLine, lang.nestedComments) *> unit
         case Predicate(ws) => new DeepToken.WhiteSpace(ws, lang.commentStart, lang.commentEnd, lang.commentLine, lang.nestedComments) *> unit
@@ -346,55 +347,55 @@ final class TokenParser(lang: LanguageDef)
     }
 
     /**Parses any comments and skips them, this includes both line comments and block comments.*/
-    lazy val skipComments: Parsley[Unit] = new DeepToken.SkipComments(lang.commentStart, lang.commentEnd, lang.commentLine, lang.nestedComments) *> unit
+    lazy val skipComments: Parsley[Char, Unit] = new DeepToken.SkipComments(lang.commentStart, lang.commentEnd, lang.commentLine, lang.nestedComments) *> unit
 
     // Bracketing
     /**Lexeme parser `parens(p)` parses `p` enclosed in parenthesis, returning the value of `p`.*/
-    def parens[A](p: =>Parsley[A]): Parsley[A] = between(symbol('(') ? "open parenthesis", symbol(')') ? "closing parenthesis" <|> fail("unclosed parentheses"), p)
+    def parens[A](p: =>Parsley[Char, A]): Parsley[Char, A] = between(symbol('(') ? "open parenthesis", symbol(')') ? "closing parenthesis" <|> fail("unclosed parentheses"), p)
 
     /**Lexeme parser `braces(p)` parses `p` enclosed in braces ('{', '}'), returning the value of 'p'*/
-    def braces[A](p: =>Parsley[A]): Parsley[A] = between(symbol('{') ? "open brace", symbol('}') ? "matching closing brace" <|> fail("unclosed braces"), p)
+    def braces[A](p: =>Parsley[Char, A]): Parsley[Char, A] = between(symbol('{') ? "open brace", symbol('}') ? "matching closing brace" <|> fail("unclosed braces"), p)
 
     /**Lexeme parser `angles(p)` parses `p` enclosed in angle brackets ('<', '>'), returning the
      * value of `p`.*/
-    def angles[A](p: =>Parsley[A]): Parsley[A] = between(symbol('<') ? "open angle bracket", symbol('>') ? "matching closing angle bracket" <|> fail("unclosed angle brackets"), p)
+    def angles[A](p: =>Parsley[Char, A]): Parsley[Char, A] = between(symbol('<') ? "open angle bracket", symbol('>') ? "matching closing angle bracket" <|> fail("unclosed angle brackets"), p)
 
     /**Lexeme parser `brackets(p)` parses `p` enclosed in brackets ('[', ']'), returning the value
      * of `p`.*/
-    def brackets[A](p: =>Parsley[A]): Parsley[A] = between(symbol('[') ? "open square bracket", symbol(']') ? "matching closing square bracket" <|> fail("unclosed square brackets"), p)
+    def brackets[A](p: =>Parsley[Char, A]): Parsley[Char, A] = between(symbol('[') ? "open square bracket", symbol(']') ? "matching closing square bracket" <|> fail("unclosed square brackets"), p)
 
     /**Lexeme parser `semi` parses the character ';' and skips any trailing white space. Returns ";"*/
-    val semi: Parsley[Char] = symbol(';') ? "semicolon"
+    val semi: Parsley[Char, Char] = symbol(';') ? "semicolon"
 
     /**Lexeme parser `comma` parses the character ',' and skips any trailing white space. Returns ","*/
-    val comma: Parsley[Char] = symbol(',') ? "comma"
+    val comma: Parsley[Char, Char] = symbol(',') ? "comma"
 
     /**Lexeme parser `colon` parses the character ':' and skips any trailing white space. Returns ":"*/
-    val colon: Parsley[Char] = symbol(':') ? "colon"
+    val colon: Parsley[Char, Char] = symbol(':') ? "colon"
 
     /**Lexeme parser `dot` parses the character '.' and skips any trailing white space. Returns "."*/
-    val dot: Parsley[Char] = symbol('.') ? "dot"
+    val dot: Parsley[Char, Char] = symbol('.') ? "dot"
 
     /**Lexeme parser `semiSep(p)` parses zero or more occurrences of `p` separated by `semi`. Returns
      * a list of values returned by `p`.*/
-    def semiSep[A](p: =>Parsley[A]): Parsley[List[A]] = sepBy(p, semi)
+    def semiSep[A](p: =>Parsley[Char, A]): Parsley[Char, List[A]] = sepBy(p, semi)
 
     /**Lexeme parser `semiSep1(p)` parses one or more occurrences of `p` separated by `semi`. Returns
      * a list of values returned by `p`.*/
-    def semiSep1[A](p: =>Parsley[A]): Parsley[List[A]] = sepBy1(p, semi)
+    def semiSep1[A](p: =>Parsley[Char, A]): Parsley[Char, List[A]] = sepBy1(p, semi)
 
     /**Lexeme parser `commaSep(p)` parses zero or more occurrences of `p` separated by `comma`.
      * Returns a list of values returned by `p`.*/
-    def commaSep[A](p: =>Parsley[A]): Parsley[List[A]] = sepBy(p, comma)
+    def commaSep[A](p: =>Parsley[Char, A]): Parsley[Char, List[A]] = sepBy(p, comma)
 
     /**Lexeme parser `commaSep1(p)` parses one or more occurrences of `p` separated by `comma`.
      * Returns a list of values returned by `p`.*/
-    def commaSep1[A](p: =>Parsley[A]): Parsley[List[A]] = sepBy1(p, comma)
+    def commaSep1[A](p: =>Parsley[Char, A]): Parsley[Char, List[A]] = sepBy1(p, comma)
 
     private def toParser(e: Impl) = e match
     {
         case BitSetImpl(cs) => satisfy(cs(_))
-        case Parser(p) => p.asInstanceOf[Parsley[Char]]
+        case Parser(p) => p.asInstanceOf[Parsley[Char, Char]]
         case Predicate(f) => satisfy(f)
         case NotRequired => empty
     }
@@ -407,36 +408,36 @@ private [parsley] object TokenParser
 
 private [parsley] object DeepToken
 {
-    private [parsley] class WhiteSpace(ws: TokenSet, start: String, end: String, line: String, nested: Boolean) extends Parsley[Nothing]
+    private [parsley] class WhiteSpace(ws: TokenSet, start: String, end: String, line: String, nested: Boolean) extends Parsley[Char, Nothing]
     {
-        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[N]] = result(this)
+        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, N]] = result(this)
         override private [parsley] def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.TokenWhiteSpace(ws, start, end, line, nested))
         }
     }
 
-    private [parsley] class SkipComments(start: String, end: String, line: String, nested: Boolean) extends Parsley[Nothing]
+    private [parsley] class SkipComments(start: String, end: String, line: String, nested: Boolean) extends Parsley[Char, Nothing]
     {
-        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[N]] = result(this)
+        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, N]] = result(this)
         override private [parsley] def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.TokenSkipComments(start, end, line, nested))
         }
     }
 
-    private [parsley] class Comment(start: String, end: String, line: String, nested: Boolean) extends Parsley[Unit]
+    private [parsley] class Comment(start: String, end: String, line: String, nested: Boolean) extends Parsley[Char, Unit]
     {
-        override protected def preprocess[Cont[_, _], U >: Unit](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[U]] = result(this)
+        override protected def preprocess[Cont[_, _], U >: Unit](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, U]] = result(this)
         override private [parsley] def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.TokenComment(start, end, line, nested))
         }
     }
 
-    private [parsley] class Sign[A](ty: SignType, val expected: UnsafeOption[String] = null) extends Parsley[A => A]
+    private [parsley] class Sign[A](ty: SignType, val expected: UnsafeOption[String] = null) extends Parsley[Char, A => A]
     {
-        override protected def preprocess[Cont[_, _], F >: A => A](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[F]] =
+        override protected def preprocess[Cont[_, _], F >: A => A](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, F]] =
         {
             if (label == null) result(this)
             else result(new Sign(ty, label))
@@ -447,9 +448,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Natural(val expected: UnsafeOption[String] = null) extends Parsley[Int]
+    private [parsley] class Natural(val expected: UnsafeOption[String] = null) extends Parsley[Char, Int]
     {
-        override protected def preprocess[Cont[_, _], I >: Int](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[I]] =
+        override protected def preprocess[Cont[_, _], I >: Int](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, I]] =
         {
             if (label == null) result(this)
             else result(new Natural(label))
@@ -460,9 +461,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Float(val expected: UnsafeOption[String] = null) extends Parsley[Double]
+    private [parsley] class Float(val expected: UnsafeOption[String] = null) extends Parsley[Char, Double]
     {
-        override protected def preprocess[Cont[_, _], D >: Double](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[D]] =
+        override protected def preprocess[Cont[_, _], D >: Double](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, D]] =
         {
             if (label == null) result(this)
             else result(new Float(label))
@@ -473,9 +474,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Escape(val expected: UnsafeOption[String] = null) extends Parsley[Char]
+    private [parsley] class Escape(val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
     {
-        override protected def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[C]] =
+        override protected def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, C]] =
         {
             if (label == null) result(this)
             else result(new Escape(label))
@@ -486,9 +487,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class StringLiteral(ws: TokenSet, val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] class StringLiteral(ws: TokenSet, val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new StringLiteral(ws, label))
@@ -499,9 +500,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class RawStringLiteral(val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] class RawStringLiteral(val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new RawStringLiteral(label))
@@ -512,9 +513,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Identifier(start: TokenSet, letter: TokenSet, keywords: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] class Identifier(start: TokenSet, letter: TokenSet, keywords: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new Identifier(start, letter, keywords, label))
@@ -525,9 +526,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class UserOp(start: TokenSet, letter: TokenSet, operators: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] class UserOp(start: TokenSet, letter: TokenSet, operators: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new UserOp(start, letter, operators, label))
@@ -538,9 +539,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class ReservedOp(start: TokenSet, letter: TokenSet, operators: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] class ReservedOp(start: TokenSet, letter: TokenSet, operators: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override protected def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new ReservedOp(start, letter, operators, label))
@@ -551,9 +552,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Keyword(private [Keyword] val keyword: String, letter: TokenSet, caseSensitive: Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Nothing]
+    private [parsley] class Keyword(private [Keyword] val keyword: String, letter: TokenSet, caseSensitive: Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Char, Nothing]
     {
-        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[N]] =
+        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, N]] =
         {
             if (label == null) result(this)
             else result(new Keyword(keyword, letter, caseSensitive, label))
@@ -564,9 +565,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class Operator(private [Operator] val operator: String, letter: TokenSet, val expected: UnsafeOption[String] = null) extends Parsley[Nothing]
+    private [parsley] class Operator(private [Operator] val operator: String, letter: TokenSet, val expected: UnsafeOption[String] = null) extends Parsley[Char, Nothing]
     {
-        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[N]] =
+        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, N]] =
         {
             if (label == null) result(this)
             else result(new Operator(operator, letter, label))
@@ -577,9 +578,9 @@ private [parsley] object DeepToken
         }
     }
 
-    private [parsley] class MaxOp(private [MaxOp] val operator: String, ops: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[Nothing]
+    private [parsley] class MaxOp(private [MaxOp] val operator: String, ops: Set[String], val expected: UnsafeOption[String] = null) extends Parsley[Char, Nothing]
     {
-        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops_ : ContOps[Cont]): Cont[Parsley[_], Parsley[N]] =
+        override protected def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops_ : ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, N]] =
         {
             if (label == null) result(this)
             else result(new MaxOp(operator, ops, label))

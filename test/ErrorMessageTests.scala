@@ -6,7 +6,7 @@ import parsley.Char.{charLift, stringLift}
 class ErrorMessageTests extends ParsleyTest
 {
     //TODO Bind tests
-    lazy val r: Parsley[List[String]] = "correct error message" <::> (r </> Nil)
+    lazy val r: Parsley[Char, List[String]] = "correct error message" <::> (r </> Nil)
     "?" should "affect base error messages" in
     {
         runParser('a' ? "ay!", "b") should be (Failure("(line 1, column 1):\n  unexpected \"b\"\n  expected ay!"))
