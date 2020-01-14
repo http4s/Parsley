@@ -11,7 +11,7 @@ import scala.language.{existentials, higherKinds, reflectiveCalls}
 // User API
 object Parsley
 {
-    implicit final class LazyParsley[P, +A](p: =>P)(implicit con: P => Parsley[A])
+    implicit final class LazyParsley[P, -T, +A](p: =>P)(implicit con: P => Parsley[T, A])
     {
         /**
           * This is the functorial map operation for parsers. When the invokee produces a value, this value is fed through
@@ -23,9 +23,9 @@ object Parsley
           * @param f The mutator to apply to the result of previous parse
           * @return A new parser which parses the same input as the invokee but mutated by function `f`
           */
-        def map[B](f: A => B): Parsley[B] = pure(f) <*> p
+        def map[B](f: A => B): Parsley[T, B] = pure(f) <*> p
         /**This combinator is an alias for `map`*/
-        def <#>[B](f: A => B): Parsley[B] = map(f)
+        def <#>[B](f: A => B): Parsley[T, B] = map(f)
         /**
           * This is the Applicative application parser. The type of `pf` is `Parsley[A => B]`. Then, given a
           * `Parsley[A]`, we can produce a `Parsley[B]` by parsing `pf` to retrieve `f: A => B`, then parse `px`
@@ -38,7 +38,7 @@ object Parsley
           * @return A new parser which parses `pf`, then `px` then applies the value returned by `px` to the function
           *         returned by `pf`
           */
-        def <*>[B, C](px: =>Parsley[B])(implicit ev: P <:< Parsley[B=>C]) = new DeepEmbedding.<*>[B, C](p, px)
+        def <*>[B, C](px: =>Parsley[T, B])(implicit ev: P <:< Parsley[T, B=>C]) = new DeepEmbedding.<*>[B, C](p, px)
         /**
           * This is the traditional Monadic binding operator for parsers. When the invokee produces a value, the function
           * `f` is used to produce a new parser that continued the computation.
@@ -48,14 +48,14 @@ object Parsley
           * @param f A function that produces the next parser
           * @return The parser produces from the application of `f` on the result of the last parser
           */
-        def flatMap[B](f: A => Parsley[B]): Parsley[B] = new DeepEmbedding.>>=(p, f)
+        def flatMap[B](f: A => Parsley[T, B]): Parsley[T, B] = new DeepEmbedding.>>=(p, f)
         /**This combinator is an alias for `flatMap(identity)`.*/
-        def flatten[B](implicit ev: A <:< Parsley[B]): Parsley[B] = flatMap[B](ev)
+        def flatten[B](implicit ev: A <:< Parsley[T, B]): Parsley[T, B] = flatMap[B](ev)
 
         /**This combinator is an alias for `flatMap`*/
-        def >>=[B](f: A => Parsley[B]): Parsley[B] = flatMap(f)
+        def >>=[B](f: A => Parsley[T, B]): Parsley[T, B] = flatMap(f)
         /**This combinator is defined as `lift2((x, f) => f(x), p, f)`. It is pure syntactic sugar.*/
-        def <**>[B](pf: =>Parsley[A => B]): Parsley[B] = lift2[A, A=>B, B]((x, f) => f(x), p, pf)
+        def <**>[B](pf: =>Parsley[T, A => B]): Parsley[T, B] = lift2[A, A=>B, B]((x, f) => f(x), p, pf)
         /**
           * This is the traditional Alternative choice operator for parsers. Following the parsec semantics precisely,
           * this combinator first tries to parse the invokee. If this is successful, no further action is taken. If the
@@ -67,58 +67,58 @@ object Parsley
           * @return The value produced by the invokee if it was successful, or if it failed without consuming input, the
           *         possible result of parsing q.
           */
-        def <|>[B >: A](q: =>Parsley[B]): Parsley[B] = new DeepEmbedding.<|>(p, q)
+        def <|>[B >: A](q: =>Parsley[T, B]): Parsley[T, B] = new DeepEmbedding.<|>(p, q)
         /**This combinator is defined as `p <|> pure(x)`. It is pure syntactic sugar.*/
-        def </>[B >: A](x: B): Parsley[B] = this <|> pure(x)
+        def </>[B >: A](x: B): Parsley[T, B] = this <|> pure(x)
         /**This combinator is an alias for <|>.*/
-        def orElse[B >: A](q: =>Parsley[B]): Parsley[B] = this <|> q
+        def orElse[B >: A](q: =>Parsley[T, B]): Parsley[T, B] = this <|> q
         /**This combinator is an alias for </>.*/
-        def getOrElse[B >: A](x: B): Parsley[B] = p </> x
+        def getOrElse[B >: A](x: B): Parsley[T, B] = p </> x
         /**This combinator is defined as `attempt(p) <|> q`. It is pure syntactic sugar.*/
-        def <\>[B >: A](q: Parsley[B]): Parsley[B] = attempt(p) <|> q
+        def <\>[B >: A](q: Parsley[T, B]): Parsley[T, B] = attempt(p) <|> q
         /**
           * This is the parser that corresponds to a more optimal version of `p.map(_ => x => x) <*> q`. It performs
           * the parse action of both parsers, in order, but discards the result of the invokee.
           * @param q The parser whose result should be returned
           * @return A new parser which first parses `p`, then `q` and returns the result of `q`
           */
-        def *>[A_ >: A, B](q: =>Parsley[B]): Parsley[B] = new DeepEmbedding.*>[A_, B](p, q)
+        def *>[A_ >: A, B](q: =>Parsley[T, B]): Parsley[T, B] = new DeepEmbedding.*>[A_, B](p, q)
         /**
           * This is the parser that corresponds to a more optimal version of `p.map(x => _ => x) <*> q`. It performs
           * the parse action of both parsers, in order, but discards the result of the second parser.
           * @param q The parser who should be executed but then discarded
           * @return A new parser which first parses `p`, then `q` and returns the result of the `p`
           */
-        def <*[B](q: =>Parsley[B]): Parsley[A] = new DeepEmbedding.<*(p, q)
+        def <*[B](q: =>Parsley[T, B]): Parsley[T, A] = new DeepEmbedding.<*(p, q)
         /**
           * This is the parser that corresponds to `p *> pure(x)` or a more optimal version of `p.map(_ => x)`.
           * It performs the parse action of the invokee but discards its result and then results the value `x` instead
           * @param x The value to be returned after the execution of the invokee
           * @return A new parser which first parses the invokee, then results `x`
           */
-        def #>[B](x: B): Parsley[B] = this *> pure(x)
+        def #>[B](x: B): Parsley[T, B] = this *> pure(x)
         /**This combinator is an alias for `*>`*/
-        def >>[B](q: Parsley[B]): Parsley[B] = this *> q
+        def >>[B](q: Parsley[T, B]): Parsley[T, B] = this *> q
         /**This parser corresponds to `lift2(_+:_, p, ps)`.*/
-        def <+:>[B >: A](ps: =>Parsley[Seq[B]]): Parsley[Seq[B]] = lift2[A, Seq[B], Seq[B]](_ +: _, p, ps)
+        def <+:>[B >: A](ps: =>Parsley[T, Seq[B]]): Parsley[T, Seq[B]] = lift2[A, Seq[B], Seq[B]](_ +: _, p, ps)
         /**This parser corresponds to `lift2(_::_, p, ps)`.*/
-        def <::>[B >: A](ps: =>Parsley[List[B]]): Parsley[List[B]] = lift2[A, List[B], List[B]](_ :: _, p, ps)
+        def <::>[B >: A](ps: =>Parsley[T, List[B]]): Parsley[T, List[B]] = lift2[A, List[B], List[B]](_ :: _, p, ps)
         /**This parser corresponds to `lift2((_, _), p, q)`. For now it is sugar, but in future may be more optimal*/
-        def <~>[A_ >: A, B](q: =>Parsley[B]): Parsley[(A_, B)] = lift2[A_, B, (A_, B)]((_, _), p, q)
+        def <~>[A_ >: A, B](q: =>Parsley[T, B]): Parsley[T, (A_, B)] = lift2[A_, B, (A_, B)]((_, _), p, q)
         /** Filter the value of a parser; if the value returned by the parser matches the predicate `pred` then the
           * filter succeeded, otherwise the parser fails with an empty error
           * @param pred The predicate that is tested against the parser result
           * @return The result of the invokee if it passes the predicate
           */
-        def filter(pred: A => Boolean): Parsley[A] = new DeepEmbedding.Ensure(p, pred)
-        def withFilter(pred: A => Boolean): Parsley[A] = filter(pred)
+        def filter(pred: A => Boolean): Parsley[T, A] = new DeepEmbedding.Ensure(p, pred)
+        def withFilter(pred: A => Boolean): Parsley[T, A] = filter(pred)
         /** Similar to `filter`, except the error message desired is also provided. This allows you to name the message
           * itself.
           * @param pred The predicate that is tested against the parser result
           * @param msg The message used for the error if the input failed the check
           * @return The result of the invokee if it passes the predicate
           */
-        def guard(pred: A => Boolean, msg: String): Parsley[A] = new DeepEmbedding.Guard(p, pred, msg)
+        def guard(pred: A => Boolean, msg: String): Parsley[T, A] = new DeepEmbedding.Guard(p, pred, msg)
         /** Similar to `filter`, except the error message desired is also provided. This allows you to name the message
           * itself. The message is provided as a generator, which allows the user to avoid otherwise expensive
           * computation.
@@ -126,33 +126,33 @@ object Parsley
           * @param msggen Generator function for error message, generating a message based on the result of the parser
           * @return The result of the invokee if it passes the predicate
           */
-        def guard(pred: A => Boolean, msggen: A => String): Parsley[A] = new DeepEmbedding.FastGuard(p, pred, msggen)
+        def guard(pred: A => Boolean, msggen: A => String): Parsley[T, A] = new DeepEmbedding.FastGuard(p, pred, msggen)
         /**Alias for guard combinator, taking a fixed message.*/
-        def >?>(pred: A => Boolean, msg: String): Parsley[A] = guard(pred, msg)
+        def >?>(pred: A => Boolean, msg: String): Parsley[T, A] = guard(pred, msg)
         /**Alias for guard combinator, taking a dynamic message generator.*/
-        def >?>(pred: A => Boolean, msggen: A => String): Parsley[A] = guard(pred, msggen)
+        def >?>(pred: A => Boolean, msggen: A => String): Parsley[T, A] = guard(pred, msggen)
         /**Sets the expected message for a parser. If the parser fails then `expected msg` will added to the error*/
-        def ?(msg: String): Parsley[A] = new DeepEmbedding.ErrorRelabel(p, msg)
+        def ?(msg: String): Parsley[T, A] = new DeepEmbedding.ErrorRelabel(p, msg)
         /** Same as `fail`, except allows for a message generated from the result of the failed parser. In essence, this
           * is equivalent to `p >>= (x => fail(msggen(x))` but requires no expensive computations from the use of `>>=`.
           * @param msggen The generator function for error message, creating a message based on the result of invokee
           * @return A parser that fails if it succeeds, with the given generator used to produce the error message
           */
-        def !(msggen: A => String): Parsley[Nothing] = new DeepEmbedding.FastFail(p, msggen)
+        def !(msggen: A => String): Parsley[T, Nothing] = new DeepEmbedding.FastFail(p, msggen)
         /** Same as `unexpected`, except allows for a message generated from the result of the failed parser. In essence,
           * this is equivalent to `p >>= (x => unexpected(x))` but requires no expensive computations from the use of
           * `>>=`
           * @param msggen The generator function for error message, creating a message based on the result of invokee
           * @return A parser that fails if it succeeds, with the given generator used to produce an unexpected message
           */
-        def unexpected(msggen: A => String): Parsley[Nothing] = new DeepEmbedding.FastUnexpected(p, msggen)
+        def unexpected(msggen: A => String): Parsley[T, Nothing] = new DeepEmbedding.FastUnexpected(p, msggen)
         /** Transforms this parser into a subroutine; instead of inlining this parser into every use-site (performing
           * optimisations and repeatedly generating code), produces a subroutine-like parser which is jumped to when
           * required. This will introduce runtime overhead, but it is fairly cheap and speeds up the compilation
           * of parsers that are very big and used many times considerably.
           * @return The same parser, but wrapped in a subroutine call
           */
-        def unary_+ : Parsley[A] = new DeepEmbedding.Subroutine(p)
+        def unary_+ : Parsley[T, A] = new DeepEmbedding.Subroutine(p)
         /**
           * Using this method enables debugging functionality for this parser. When it is entered a snapshot is taken and
           * presented on exit. It will signify when a parser is entered and exited as well. Use the break parameter to halt
@@ -162,12 +162,12 @@ object Parsley
           */
         def debug[A_ >: A](name: String, break: Breakpoint = NoBreak): Parsley[A_] = new DeepEmbedding.Debug[A_](p, name, break)
     }
-    implicit final class LazyMapParsley[A, +B](f: A => B)
+    implicit final class LazyMapParsley[T, A, +B](f: A => B)
     {
         /**This combinator is an alias for `map`*/
-        def <#>(p: =>Parsley[A]): Parsley[B] = p.map(f)
+        def <#>(p: =>Parsley[T, A]): Parsley[T, B] = p.map(f)
     }
-    implicit final class LazyChooseParsley[P, +A](pq: =>(P, P))(implicit con: P => Parsley[A])
+    implicit final class LazyChooseParsley[T, P, +A](pq: =>(P, P))(implicit con: P => Parsley[T, A])
     {
         private lazy val (p, q) = pq
         /**
@@ -179,7 +179,7 @@ object Parsley
           * @param b The parser that yields the condition value
           * @return The result of either `p` or `q` depending on the return value of the invokee
           */
-        def ?:(b: =>Parsley[Boolean]): Parsley[A] = new DeepEmbedding.Ternary(b, p, q)
+        def ?:(b: =>Parsley[T, Boolean]): Parsley[T, A] = new DeepEmbedding.Ternary(b, p, q)
     }
 
     /** This is the traditional applicative pure function (or monadic return) for parsers. It consumes no input and
@@ -188,7 +188,7 @@ object Parsley
       * @param x The value to be returned from the parser
       * @return A parser which consumes nothing and returns `x`
       */
-    def pure[A](x: A): Parsley[A] = new DeepEmbedding.Pure(x)
+    def pure[A](x: A): Parsley[Any, A] = new DeepEmbedding.Pure(x)
 
     /** Traditionally, `lift2` is defined as `lift2(f, p, q) = p.map(f) <*> q`. However, `f` is actually uncurried,
       * so it's actually more exactly defined as; read `p` and then read `q` then provide their results to function
@@ -199,7 +199,7 @@ object Parsley
       * @param q The second parser to parse
       * @return `f(x, y)` where `x` is the result of `p` and `y` is the result of `q`.
       */
-    def lift2[A, B, C](f: (A, B) => C, p: =>Parsley[A], q: =>Parsley[B]): Parsley[C] = new DeepEmbedding.Lift2(f, p, q)
+    def lift2[T, A, B, C](f: (A, B) => C, p: =>Parsley[T, A], q: =>Parsley[T, B]): Parsley[T, C] = new DeepEmbedding.Lift2(f, p, q)
     /** Traditionally, `lift2` is defined as `lift3(f, p, q, r) = p.map(f) <*> q <*> r`. However, `f` is actually uncurried,
       * so it's actually more exactly defined as; read `p` and then read `q` and then read 'r' then provide their results
       * to function `f`. This is designed to bring higher performance to any curried operations that are not themselves
@@ -210,41 +210,41 @@ object Parsley
       * @param r The third parser to parse
       * @return `f(x, y, z)` where `x` is the result of `p`, `y` is the result of `q` and `z` is the result of `r`.
       */
-    def lift3[A, B, C, D](f: (A, B, C) => D, p: =>Parsley[A], q: =>Parsley[B], r: =>Parsley[C]): Parsley[D] = new DeepEmbedding.Lift3(f, p, q, r)
+    def lift3[T, A, B, C, D](f: (A, B, C) => D, p: =>Parsley[T, A], q: =>Parsley[T, B], r: =>Parsley[T, C]): Parsley[T, D] = new DeepEmbedding.Lift3(f, p, q, r)
     /**This function is an alias for `_.flatten`. Provides namesake to Haskell.*/
-    def join[A](p: =>Parsley[Parsley[A]]): Parsley[A] = p.flatten
+    def join[T, A](p: =>Parsley[T, Parsley[T, A]]): Parsley[T, A] = p.flatten
     /** Given a parser `p`, attempts to parse `p`. If the parser fails, then `attempt` ensures that no input was
       * consumed. This allows for backtracking capabilities, disabling the implicit cut semantics offered by `<|>`.
       * @param p The parser to run
       * @return The result of `p`, or if `p` failed ensures the parser state was as it was on entry.
       */
-    def attempt[A](p: =>Parsley[A]): Parsley[A] = new DeepEmbedding.Attempt(p)
+    def attempt[T, A](p: =>Parsley[T, A]): Parsley[T, A] = new DeepEmbedding.Attempt(p)
     /** Parses `p` without consuming any input. If `p` fails and consumes input then so does `lookAhead(p)`. Combine with
       * `attempt` if this is undesirable.
       * @param p The parser to look ahead at
       * @return The result of the lookahead
       */
-    def lookAhead[A](p: =>Parsley[A]): Parsley[A] = new DeepEmbedding.Look(p)
+    def lookAhead[T, A](p: =>Parsley[T, A]): Parsley[T, A] = new DeepEmbedding.Look(p)
     /**Alias for `p ? msg`.*/
-    def label[A](p: Parsley[A], msg: String): Parsley[A] = p ? msg
+    def label[T, A](p: Parsley[T, A], msg: String): Parsley[T, A] = p ? msg
     /** The `fail(msg)` parser consumes no input and fails with `msg` as the error message */
-    def fail(msg: String): Parsley[Nothing] = new DeepEmbedding.Fail(msg)
+    def fail(msg: String): Parsley[Any, Nothing] = new DeepEmbedding.Fail(msg)
     /** The `empty` parser consumes no input and fails softly (that is to say, no error message) */
-    val empty: Parsley[Nothing] = new DeepEmbedding.Empty
+    val empty: Parsley[Any, Nothing] = new DeepEmbedding.Empty
     /** The `unexpected(msg)` parser consumes no input and fails with `msg` as an unexpected error */
-    def unexpected(msg: String): Parsley[Nothing] = new DeepEmbedding.Unexpected(msg)
+    def unexpected(msg: String): Parsley[Any, Nothing] = new DeepEmbedding.Unexpected(msg)
     /** Returns `()`. Defined as `pure(())` but aliased for sugar*/
-    val unit: Parsley[Unit] = pure(())
+    val unit: Parsley[Any, Unit] = pure(())
     /** `many(p)` executes the parser `p` zero or more times. Returns a list of the returned values of `p`. */
-    def many[A](p: =>Parsley[A]): Parsley[List[A]] = new DeepEmbedding.Many(p)
+    def many[T, A](p: =>Parsley[T, A]): Parsley[T, List[A]] = new DeepEmbedding.Many(p)
     /** `skipMany(p)` executes the parser `p` zero or more times and ignores the results. Returns `()` */
-    def skipMany[A](p: =>Parsley[A]): Parsley[Unit] = new DeepEmbedding.*>(new DeepEmbedding.SkipMany(p), unit)
+    def skipMany[T, A](p: =>Parsley[T, A]): Parsley[T, Unit] = new DeepEmbedding.*>(new DeepEmbedding.SkipMany(p), unit)
     /**
       * Evaluate each of the parsers in `ps` sequentially from left to right, collecting the results.
       * @param ps Parsers to be sequenced
       * @return The list containing results, one from each parser, in order
       */
-    def sequence[A](ps: Parsley[A]*): Parsley[List[A]] = ps.foldRight(pure[List[A]](Nil))(_ <::> _)
+    def sequence[T, A](ps: Parsley[T, A]*): Parsley[T, List[A]] = ps.foldRight(pure[List[A]](Nil))(_ <::> _)
     /**
       * Like `sequence` but produces a list of parsers to sequence by applying the function `f` to each
       * element in `xs`.
@@ -252,27 +252,27 @@ object Parsley
       * @param xs Values to generate parsers from
       * @return The list containing results formed by executing each parser generated from `xs` and `f` in sequence
       */
-    def traverse[A, B](f: A => Parsley[B], xs: A*): Parsley[List[B]] = sequence(xs.map(f): _*)
+    def traverse[T, A, B](f: A => Parsley[T, B], xs: A*): Parsley[T, List[B]] = sequence(xs.map(f): _*)
     /**
       * Evaluate each of the parsers in `ps` sequentially from left to right, ignoring the results.
       * @param ps Parsers to be performed
       */
-    def skip(ps: Parsley[_]*): Parsley[Unit] = ps.foldRight(unit)(_ *> _)
+    def skip[T](ps: Parsley[T, _]*): Parsley[T, Unit] = ps.foldRight(unit)(_ *> _)
     /**
       * This parser consumes no input and returns the current line number reached in the input stream
       * @return The line number the parser is currently at
       */
-    val line: Parsley[Int] = DeepEmbedding.Line
+    val line: Parsley[Any, Int] = DeepEmbedding.Line
     /**
       * This parser consumes no input and returns the current column number reached in the input stream
       * @return The column number the parser is currently at
       */
-    val col: Parsley[Int] = DeepEmbedding.Col
+    val col: Parsley[Any, Int] = DeepEmbedding.Col
     /**
       * This parser consumes no input and returns the current position reached in the input stream
       * @return Tuple of line and column number that the parser has reached
       */
-    val pos: Parsley[(Int, Int)] = line <~> col
+    val pos: Parsley[Any, (Int, Int)] = line <~> col
     /**
       * Consumes no input and returns the value stored in one of the parser registers.
       * Note that there are only 4 registers at present.
@@ -280,21 +280,21 @@ object Parsley
       * @tparam S The type of the value in register `v` (this will result in a runtime type-check)
       * @return The value stored in register `v` of type `S`
       */
-    def get[S](v: Var)(implicit ev: S =!= Nothing): Parsley[S] = new DeepEmbedding.Get(v)
+    def get[S](v: Var)(implicit ev: S =!= Nothing): Parsley[Any, S] = new DeepEmbedding.Get(v)
     /**
       * Consumes no input and places the value `x` into register `v`.
       * Note that there are only 4 registers at present.
       * @param v The index of the register to place the value in
       * @param x The value to place in the register
       */
-    def put[S](v: Var, x: S): Parsley[Unit] = put(v, pure(x))
+    def put[S](v: Var, x: S): Parsley[Any, Unit] = put(v, pure(x))
     /**
       * Places the result of running `p` into register `v`.
       * Note that there are only 4 registers at present.
       * @param v The index of the register to place the value in
       * @param p The parser to derive the value from
       */
-    def put[S](v: Var, p: =>Parsley[S]): Parsley[Unit] = new DeepEmbedding.*>(new DeepEmbedding.Put(v, p), unit)
+    def put[T, S](v: Var, p: =>Parsley[T, S]): Parsley[T, Unit] = new DeepEmbedding.*>(new DeepEmbedding.Put(v, p), unit)
     /**
       * Modifies the value contained in register `v` using function `f`. It is left to the users responsibility to
       * ensure the types line up. There is no compile-time type checking enforced!
@@ -303,7 +303,7 @@ object Parsley
       * @param f The function used to modify the register
       * @tparam S The type of value currently assumed to be in the register
       */
-    def modify[S](v: Var, f: S => S): Parsley[Unit] = new DeepEmbedding.*>(new DeepEmbedding.Modify(v, f), unit)
+    def modify[S](v: Var, f: S => S): Parsley[Any, Unit] = new DeepEmbedding.*>(new DeepEmbedding.Modify(v, f), unit)
     /**
       * For the duration of parser `p` the state stored in register `v` is instead set to `x`. The change is undone
       * after `p` has finished.
@@ -313,7 +313,7 @@ object Parsley
       * @param p The parser to execute with the adjusted state
       * @return The parser that performs `p` with the modified state
       */
-    def local[R, A](v: Var, x: R, p: =>Parsley[A]): Parsley[A] = local(v, pure(x), p)
+    def local[T, R, A](v: Var, x: R, p: =>Parsley[T, A]): Parsley[T, A] = local(v, pure(x), p)
     /**
       * For the duration of parser `q` the state stored in register `v` is instead set to the return value of `p`. The
       * change is undone after `q` has finished.
@@ -323,7 +323,7 @@ object Parsley
       * @param q The parser to execute with the adjusted state
       * @return The parser that performs `q` with the modified state
       */
-    def local[R, A](v: Var, p: =>Parsley[R], q: =>Parsley[A]): Parsley[A] = new DeepEmbedding.Local(v, p, q)
+    def local[T, R, A](v: Var, p: =>Parsley[T, R], q: =>Parsley[T, A]): Parsley[T, A] = new DeepEmbedding.Local(v, p, q)
     /**
       * For the duration of parser `p` the state stored in register `v` is instead modified with `f`. The change is undone
       * after `p` has finished.
@@ -333,7 +333,7 @@ object Parsley
       * @param p The parser to execute with the adjusted state
       * @return The parser that performs `p` with the modified state
       */
-    def local[R, A](v: Var, f: R => R, p: =>Parsley[A]): Parsley[A] = local(v, get[R](v).map(f), p)
+    def local[T, R, A](v: Var, f: R => R, p: =>Parsley[T, A]): Parsley[T, A] = local(v, get[R](v).map(f), p)
 }
 
 // Internals
@@ -342,7 +342,7 @@ private [parsley] class CodeGenState
     import CodeGenState.CodeGenSubQueueNode
     private [this] var current = 0
     private [this] var queue: CodeGenSubQueueNode = _
-    val map: mutable.Map[Parsley[_], Int] = mutable.Map.empty
+    val map: mutable.Map[Parsley[_, _], Int] = mutable.Map.empty
     def freshLabel(): Int =
     {
         val next = current
@@ -351,7 +351,7 @@ private [parsley] class CodeGenState
     }
     def nlabels: Int = current
 
-    def getSubLabel(p: Parsley[_]) =
+    def getSubLabel(p: Parsley[_, _]) =
     {
         map.getOrElseUpdate(p,
         {
@@ -360,7 +360,7 @@ private [parsley] class CodeGenState
         })
     }
 
-    def nextSub(): Parsley[_] =
+    def nextSub(): Parsley[_, _] =
     {
         val p = queue.p
         queue = queue.tail
@@ -371,7 +371,7 @@ private [parsley] class CodeGenState
 }
 private [parsley] object CodeGenState
 {
-    private [CodeGenState] class CodeGenSubQueueNode(val p: Parsley[_], val tail: CodeGenSubQueueNode)
+    private [CodeGenState] class CodeGenSubQueueNode(val p: Parsley[_, _], val tail: CodeGenSubQueueNode)
 }
 
 /**
@@ -383,7 +383,7 @@ private [parsley] object CodeGenState
   * @author Jamie Willis
   * @version 1
   */
-abstract class Parsley[+A] private [parsley]
+abstract class Parsley[-Tok, +A] private [parsley]
 {
     final protected type InstrBuffer = ResizableArray[Instr]
     final protected type T = Any
@@ -409,7 +409,7 @@ abstract class Parsley[+A] private [parsley]
     final private [parsley] def pretty: String = instrs.mkString("; ")
 
     // Internals
-    final private [parsley] def optimised[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[A_]] =
+    final private [parsley] def optimised[Cont[_, +_], A_ >: A](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
     {
         for (p <- (if (seen.isEmpty) this else this.fix).preprocess(seen + this, label, ops)) yield p.optimise
     }
@@ -420,7 +420,7 @@ abstract class Parsley[+A] private [parsley]
     {
         val instrs: InstrBuffer = new ResizableArray()
         val state = new CodeGenState
-        perform(perform(optimised(Set.empty, null, ops).asInstanceOf[({type C[_, _]})#C[Parsley[_], Parsley[_]]]).codeGen(instrs, state, ops))
+        perform(perform(optimised(Set.empty, null, ops).asInstanceOf[({type C[_, _]})#C[Parsley[_, _], Parsley[_, _]]]).codeGen(instrs, state, ops))
         if (state.map.nonEmpty)
         {
             val end = state.freshLabel()
@@ -501,13 +501,13 @@ abstract class Parsley[+A] private [parsley]
         }
         else instrs
     }
-    final private [parsley] def fix(implicit seen: Set[Parsley[_]], label: UnsafeOption[String]): Parsley[A] = if (seen.contains(this)) new DeepEmbedding.Fixpoint(() => this, label) else this
+    final private [parsley] def fix(implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String]): Parsley[Tok, A] = if (seen.contains(this)) new DeepEmbedding.Fixpoint(() => this, label) else this
 
     // Abstracts
     // Sub-tree optimisation and fixpoint calculation - Bottom-up
-    protected def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[A_]]
+    protected def preprocess[Cont[_, +_], A_ >: A](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]]
     // Optimisation - Bottom-up
-    private [parsley] def optimise: Parsley[A] = this
+    private [parsley] def optimise: Parsley[Tok, A] = this
     // Peephole optimisation and code generation - Top-down
     private [parsley] def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit]
 }
@@ -515,19 +515,19 @@ abstract class Parsley[+A] private [parsley]
 private [parsley] object DeepEmbedding
 {
     // Core Embedding
-    private [parsley] final class Pure[A](private [Pure] val x: A) extends Parsley[A]
+    private [parsley] final class Pure[A](private [Pure] val x: A) extends Parsley[Any, A]
     {
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[A_]] = result(this)
+        override def preprocess[Cont[_, +_], A_ >: A](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, A_]] = result(this)
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Push(x))
         }
     }
-    private [parsley] final class <*>[A, B](_pf: =>Parsley[A => B], _px: =>Parsley[A]) extends Parsley[B]
+    private [parsley] final class <*>[Tok, A, B](_pf: =>Parsley[Tok, A => B], _px: =>Parsley[Tok, A]) extends Parsley[Tok, B]
     {
-        private [<*>] var pf: Parsley[A => B] = _
-        private [<*>] var px: Parsley[A] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[B_]] =
+        private [<*>] var pf: Parsley[Tok, A => B] = _
+        private [<*>] var px: Parsley[Tok, A] = _
+        override def preprocess[Cont[_, +_], B_ >: B](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
             if (label == null && pf != null) result(this) else for (pf <- _pf.optimised; px <- _px.optimised) yield
             {
                 if (label == null)
@@ -538,7 +538,7 @@ private [parsley] object DeepEmbedding
                 }
                 else <*>(pf, px)
             }
-        override def optimise: Parsley[B] = (pf, px) match
+        override def optimise: Parsley[Tok, B] = (pf, px) match
         {
             // Fusion laws
             case (uf, Pure(x)) if uf.isInstanceOf[Pure[_]] || uf.isInstanceOf[_ <*> _] && uf.safe => uf match
@@ -546,23 +546,23 @@ private [parsley] object DeepEmbedding
                 // first position fusion
                 case Pure(f) => new Pure(f(x))
                 // second position fusion
-                case Pure(f: (T => A => B) @unchecked) <*> (uy: Parsley[T]) =>
+                case Pure(f: (T => A => B) @unchecked) <*> (uy: Parsley[Tok, T]) =>
                     pf = new Pure((y: T) => f(y)(x))
-                    px = uy.asInstanceOf[Parsley[A]]
+                    px = uy.asInstanceOf[Parsley[Tok, A]]
                     this
                 // third position fusion
-                case Pure(f: (T => U => A => B) @unchecked) <*> (uy: Parsley[T]) <*> (uz: Parsley[U]) =>
+                case Pure(f: (T => U => A => B) @unchecked) <*> (uy: Parsley[Tok, T]) <*> (uz: Parsley[Tok, U]) =>
                     pf = <*>(new Pure((y: T) => (z: U) => f(y)(z)(x)), uy)
-                    px = uz.asInstanceOf[Parsley[A]]
+                    px = uz.asInstanceOf[Parsley[Tok, A]]
                     this
                 // interchange law: u <*> pure y == pure ($y) <*> u == ($y) <$> u (single instruction, so we benefit at code-gen)
                 case _ =>
-                    pf = new Pure((f: A => B) => f(x)).asInstanceOf[Parsley[A => B]]
-                    px = uf.asInstanceOf[Parsley[A]]
+                    pf = new Pure((f: A => B) => f(x)).asInstanceOf[Parsley[Tok, A => B]]
+                    px = uf.asInstanceOf[Parsley[Tok, A]]
                     this
             }
             // functor law: fmap f (fmap g p) == fmap (f . g) p where fmap f p = pure f <*> p from applicative
-            case (Pure(f), Pure(g: (T => A) @unchecked) <*> (u: Parsley[T])) => <*>(new Pure(f.compose(g)), u)
+            case (Pure(f), Pure(g: (T => A) @unchecked) <*> (u: Parsley[Tok, T])) => <*>(new Pure(f.compose(g)), u)
             // TODO: functor law with lift2!
             // right absorption law: mzero <*> p = mzero
             case (z: MZero, _) => z
@@ -582,8 +582,8 @@ private [parsley] object DeepEmbedding
             case (u, z: MZero) => *>(u, z)
             // interchange law: u <*> pure y == pure ($y) <*> u == ($y) <$> u (single instruction, so we benefit at code-gen)
             case (uf, Pure(x)) =>
-                pf = new Pure((f: A => B) => f(x)).asInstanceOf[Parsley[A => B]]
-                px = uf.asInstanceOf[Parsley[A]]
+                pf = new Pure((f: A => B) => f(x)).asInstanceOf[Parsley[Tok, A => B]]
+                px = uf.asInstanceOf[Parsley[Tok, A]]
                 this
             case _ => this
         }
@@ -604,11 +604,11 @@ private [parsley] object DeepEmbedding
                 (instrs += instructions.Apply)
         }
     }
-    private [parsley] final class <|>[A, B](_p: =>Parsley[A], _q: =>Parsley[B]) extends Parsley[B]
+    private [parsley] final class <|>[Tok, A, B](_p: =>Parsley[Tok, A], _q: =>Parsley[Tok, B]) extends Parsley[Tok, B]
     {
-        private [<|>] var p: Parsley[A] = _
-        private [<|>] var q: Parsley[B] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[B_]] =
+        private [<|>] var p: Parsley[Tok, A] = _
+        private [<|>] var q: Parsley[Tok, B] = _
+        override def preprocess[Cont[_, +_], B_ >: B](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
             if (label == null && p != null) result(this) else for (p <- _p.optimised; q <- _q.optimised) yield
             {
                 if (label == null)
@@ -619,18 +619,18 @@ private [parsley] object DeepEmbedding
                 }
                 else <|>(p, q)
             }
-        override def optimise: Parsley[B] = (p, q) match
+        override def optimise: Parsley[Tok, B] = (p, q) match
         {
             // left catch law: pure x <|> p = pure x
             case (u: Pure[B], _) => u
             // alternative law: empty <|> p = p
             case (e: Empty, v) if e.expected == null => v
             // alternative law: p <|> empty = p
-            case (u: Parsley[B], e: Empty) if e.expected == null => u
+            case (u: Parsley[Tok, B], e: Empty) if e.expected == null => u
             // associative law: (u <|> v) <|> w = u <|> (v <|> w)
-            case ((u: Parsley[T]) <|> (v: Parsley[A]), w) =>
-                p = u.asInstanceOf[Parsley[A]]
-                q = <|>[A, B](v, w).optimise
+            case ((u: Parsley[Tok, T]) <|> (v: Parsley[Tok, A]), w) =>
+                p = u.asInstanceOf[Parsley[Tok, A]]
+                q = <|>[Tok, A, B](v, w).optimise
                 this
             case _ => this
         }
@@ -713,7 +713,7 @@ private [parsley] object DeepEmbedding
                     }
                 }
         }
-        def codeGenRoots[Cont[_, _]](roots: List[List[Parsley[_]]], ls: List[Int], end: Int)(implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = roots match
+        def codeGenRoots[Cont[_, _]](roots: List[List[Parsley[Tok, _]]], ls: List[Int], end: Int)(implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = roots match
         {
             case root::roots_ =>
                 instrs += new instructions.Label(ls.head)
@@ -724,7 +724,7 @@ private [parsley] object DeepEmbedding
                 }
             case Nil => result(())
         }
-        def codeGenAlternatives[Cont[_, _]](alts: List[Parsley[_]])(implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = (alts: @unchecked) match
+        def codeGenAlternatives[Cont[_, _]](alts: List[Parsley[Tok, _]])(implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = (alts: @unchecked) match
         {
             case alt::Nil => alt.codeGen
             case Attempt(alt)::alts_ =>
@@ -749,12 +749,12 @@ private [parsley] object DeepEmbedding
                     ops.|>(codeGenAlternatives(alts_), instrs += new instructions.Label(skip))
                 }
         }
-        @tailrec def foldTablified(tablified: List[(Parsley[_], Option[Parsley[_]])], labelGen: CodeGenState,
-                                   roots: mutable.Map[Char, List[Parsley[_]]],
+        @tailrec def foldTablified(tablified: List[(Parsley[Tok, _], Option[Parsley[Tok, _]])], labelGen: CodeGenState,
+                                   roots: mutable.Map[Char, List[Parsley[Tok, _]]],
                                    leads: List[Char],
                                    labels: List[Int],
                                    expecteds: List[UnsafeOption[String]]):
-            (List[List[Parsley[_]]], List[Char], List[Int], List[UnsafeOption[String]]) = tablified match
+            (List[List[Parsley[Tok, _]]], List[Char], List[Int], List[UnsafeOption[String]]) = tablified match
         {
             case (_, None)::tablified_ => foldTablified(tablified_, labelGen, roots, leads, labels, expecteds)
             case (root, Some(lead))::tablified_ =>
@@ -780,7 +780,7 @@ private [parsley] object DeepEmbedding
                 }
             case Nil => (leads.map(roots(_)), leads, labels, expecteds)
         }
-        @tailrec private def tablable(p: Parsley[_]): Option[Parsley[_]] = p match
+        @tailrec private def tablable(p: Parsley[Tok, _]): Option[Parsley[Tok, _]] = p match
         {
             // CODO: Numeric parsers by leading digit (This one would require changing the foldTablified function a bit)
             case t@(_: CharTok | _: StringTok | _: Keyword | _: StringLiteral | _: RawStringLiteral | _: Operator | _: MaxOp) => Some(t)
@@ -793,7 +793,7 @@ private [parsley] object DeepEmbedding
             case t <* _ => tablable(t)
             case _ => None
         }
-        @tailrec private [DeepEmbedding] def tablify(p: Parsley[_], acc: List[(Parsley[_], Option[Parsley[_]])]): List[(Parsley[_], Option[Parsley[_]])] = p match
+        @tailrec private [DeepEmbedding] def tablify(p: Parsley[Tok, _], acc: List[(Parsley[Tok, _], Option[Parsley[Tok, _]])]): List[(Parsley[Tok, _], Option[Parsley[Tok, _]])] = p match
         {
             case u <|> v =>
                 val leading = tablable(u)
@@ -802,10 +802,10 @@ private [parsley] object DeepEmbedding
             case _ => (p, tablable(p))::acc
         }
     }
-    private [parsley] final class >>=[A, B](_p: =>Parsley[A], private [>>=] var f: A => Parsley[B], val expected: UnsafeOption[String] = null) extends Parsley[B]
+    private [parsley] final class >>=[Tok, A, B](_p: =>Parsley[Tok, A], private [>>=] var f: A => Parsley[Tok, B], val expected: UnsafeOption[String] = null) extends Parsley[Tok, B]
     {
-        private [>>=] var p: Parsley[A] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[B_]] =
+        private [>>=] var p: Parsley[Tok, A] = _
+        override def preprocess[Cont[_, +_], B_ >: B](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
             if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
             {
                 if (label == null)
@@ -815,7 +815,7 @@ private [parsley] object DeepEmbedding
                 }
                 else >>=(p, f, label)
             }
-        override def optimise: Parsley[B] = p match
+        override def optimise: Parsley[Tok, B] = p match
         {
             // CODO: We need to try and identify the fixpoints in the optimised binds, so we can remove the call instructions
             // monad law 1: pure x >>= f = f x
@@ -826,8 +826,8 @@ private [parsley] object DeepEmbedding
             // (q *> p) >>= f = q *> (p >>= f)
             case u *> v => *>(u, >>=(v, f, expected).optimise)
             // monad law 3: (m >>= g) >>= f = m >>= (\x -> g x >>= f) Note: this *could* help if g x ended with a pure, since this would be optimised out!
-            case (m: Parsley[T] @unchecked) >>= (g: (T => A) @unchecked) =>
-                p = m.asInstanceOf[Parsley[A]]
+            case (m: Parsley[Tok, T] @unchecked) >>= (g: (T => A) @unchecked) =>
+                p = m.asInstanceOf[Parsley[Tok, A]]
                 f = (x: T) => >>=(g(x), f, expected).optimise
                 this
             // monadplus law (left zero)
@@ -840,9 +840,9 @@ private [parsley] object DeepEmbedding
             (instrs += new instructions.DynCall[A](x => f(x).instrs, expected))
         }
     }
-    private [parsley] final class Satisfy(private [Satisfy] val f: Char => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Char]
+    private [parsley] final class Satisfy(private [Satisfy] val f: Char => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
     {
-        override def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[C]] =
+        override def preprocess[Cont[_, +_], C >: Char](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, C]] =
         {
             if (label == null) result(this)
             else result(new Satisfy(f, label))
@@ -852,17 +852,17 @@ private [parsley] object DeepEmbedding
             result(instrs += new instructions.Satisfies(f, expected))
         }
     }
-    private [parsley] abstract class Cont[A, +B] extends Parsley[B]
+    private [parsley] abstract class Cont[Tok, A, +B] extends Parsley[Tok, B]
     {
-        def result: Parsley[B]
-        def discard: Parsley[A]
-        def copy[B_ >: B](prev: Parsley[A], next: Parsley[B_]): Cont[A, B_]
+        def result: Parsley[Tok, B]
+        def discard: Parsley[Tok, A]
+        def copy[B_ >: B](prev: Parsley[Tok, A], next: Parsley[Tok, B_]): Cont[Tok, A, B_]
     }
-    private [parsley] final class *>[A, B](_p: =>Parsley[A], _q: =>Parsley[B]) extends Cont[A, B]
+    private [parsley] final class *>[Tok, A, B](_p: =>Parsley[Tok, A], _q: =>Parsley[Tok, B]) extends Cont[Tok, A, B]
     {
-        private [*>] var p: Parsley[A] = _
-        private [*>] var q: Parsley[B] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[B_]] =
+        private [*>] var p: Parsley[Tok, A] = _
+        private [*>] var q: Parsley[Tok, B] = _
+        override def preprocess[Cont[_, +_], B_ >: B](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
             if (label == null && p != null) ops.wrap(this) else for (p <- _p.optimised; q <- _q.optimised) yield
             {
                 if (label == null)
@@ -873,38 +873,38 @@ private [parsley] object DeepEmbedding
                 }
                 else *>(p, q)
             }
-        @tailrec override def optimise: Parsley[B] = p match
+        @tailrec override def optimise: Parsley[Tok, B] = p match
         {
             // pure _ *> p = p
             case _: Pure[_] => q
             // p *> pure _ *> q = p *> q
             case u *> (_: Pure[_]) =>
-                p = u.asInstanceOf[Parsley[A]]
+                p = u.asInstanceOf[Parsley[Tok, A]]
                 optimise
             case CharTok(c) if q.isInstanceOf[CharTok] || q.isInstanceOf[StringTok] => q match
             {
                 // char(c) *> char(d) = string(cd) *> pure(d)
                 case CharTok(d) =>
-                    p = new StringTok(c.toString + d).asInstanceOf[Parsley[A]]
-                    q = new Pure(d).asInstanceOf[Parsley[B]]
+                    p = new StringTok(c.toString + d).asInstanceOf[Parsley[Tok, A]]
+                    q = new Pure(d).asInstanceOf[Parsley[Tok, B]]
                     optimise
                 // char(c) *> string(s) = string(cs) *> pure(s)
                 case StringTok(s) =>
-                    p = new StringTok(c.toString + s).asInstanceOf[Parsley[A]]
-                    q = new Pure(s).asInstanceOf[Parsley[B]]
+                    p = new StringTok(c.toString + s).asInstanceOf[Parsley[Tok, A]]
+                    q = new Pure(s).asInstanceOf[Parsley[Tok, B]]
                     optimise
             }
             case StringTok(s) if q.isInstanceOf[CharTok] || q.isInstanceOf[StringTok] => q match
             {
                 // string(s) *> char(c) = string(sc) *> pure(c)
                 case CharTok(c) =>
-                    p = new StringTok(s + c).asInstanceOf[Parsley[A]]
-                    q = new Pure(c).asInstanceOf[Parsley[B]]
+                    p = new StringTok(s + c).asInstanceOf[Parsley[Tok, A]]
+                    q = new Pure(c).asInstanceOf[Parsley[Tok, B]]
                     optimise
                 // string(s) *> string(t) = string(st) *> pure(t)
                 case StringTok(t) =>
-                    p = new StringTok(s + t).asInstanceOf[Parsley[A]]
-                    q = new Pure(t).asInstanceOf[Parsley[B]]
+                    p = new StringTok(s + t).asInstanceOf[Parsley[Tok, A]]
+                    q = new Pure(t).asInstanceOf[Parsley[Tok, B]]
                     optimise
             }
             // mzero *> p = mzero (left zero and definition of *> in terms of >>=)
@@ -913,7 +913,7 @@ private [parsley] object DeepEmbedding
             {
                 // re-association - normal form of Then chain is to have result at the top of tree
                 case v *> w =>
-                    p = *>(u, v).asInstanceOf[Parsley[A]].optimise
+                    p = *>(u, v).asInstanceOf[Parsley[Tok, A]].optimise
                     q = w
                     optimise
                 case _ => this
@@ -937,9 +937,9 @@ private [parsley] object DeepEmbedding
                     v.codeGen
                 }
         }
-        override def discard: Parsley[A] = p
-        override def result: Parsley[B] = q
-        override def copy[B_ >: B](prev: Parsley[A], next: Parsley[B_]): A *> B_ = *>(prev, next)
+        override def discard: Parsley[Tok, A] = p
+        override def result: Parsley[Tok, B] = q
+        override def copy[B_ >: B](prev: Parsley[Tok, A], next: Parsley[Tok, B_]): A *> B_ = *>(prev, next)
     }
     private [parsley] final class <*[A, B](_p: =>Parsley[A], _q: =>Parsley[B]) extends Cont[B, A]
     {
@@ -1134,9 +1134,9 @@ private [parsley] object DeepEmbedding
         }
     }
     // Intrinsic Embedding
-    private [parsley] final class CharTok(private [CharTok] val c: Char, val expected: UnsafeOption[String] = null) extends Parsley[Char]
+    private [parsley] final class CharTok(private [CharTok] val c: Char, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
     {
-        override def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[C]] =
+        override def preprocess[Cont[_, +_], C >: Char](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, C]] =
         {
             if (label == null) result(this)
             else result(new CharTok(c, label))
@@ -1146,9 +1146,9 @@ private [parsley] object DeepEmbedding
             result(instrs += instructions.CharTok(c, expected))
         }
     }
-    private [parsley] final class StringTok(private [StringTok] val s: String, val expected: UnsafeOption[String] = null) extends Parsley[String]
+    private [parsley] final class StringTok(private [StringTok] val s: String, val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_], Parsley[S]] =
+        override def preprocess[Cont[_, +_], S >: String](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
         {
             if (label == null) result(this)
             else result(new StringTok(s, label))
