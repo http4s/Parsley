@@ -10,7 +10,7 @@ import scala.language.implicitConversions
   */
 object Implicits
 {
-    @inline implicit def voidImplicitly[P](p: P)(implicit con: P => Parsley[_]): Parsley[Unit] = void(p)
-    @inline implicit def stringLift(str: String): Parsley[String] = string(str)
-    @inline implicit def charLift(c: Char): Parsley[Char] = char(c)
+    @inline implicit def voidImplicitly[Tok, P](p: P)(implicit con: P => Parsley[Tok, _]): Parsley[Tok, Unit] = void(p)
+    @inline implicit def stringLift(str: String): Parsley[Char, String] = string(str)
+    @inline implicit def charLift(c: Char): Parsley[Char, Char] = char(c)
 }

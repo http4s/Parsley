@@ -227,8 +227,8 @@ class CombinatorTests extends ParsleyTest
         val v2 = Var(1)
         val abc = put(v1, 0) *>
                   many('a' *> modify[Int](v1, _ + 1)) *>
-                  forP[Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'b') *>
-                  forP[Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'c')
+                  forP[Char, Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'b') *>
+                  forP[Char, Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'c')
         runParser(abc, "aaabbbccc") should be (Success(()))
         runParser(abc, "aaaabc") shouldBe a [Failure]
     }

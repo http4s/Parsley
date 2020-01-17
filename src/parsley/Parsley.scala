@@ -38,7 +38,7 @@ object Parsley
           * @return A new parser which parses `pf`, then `px` then applies the value returned by `px` to the function
           *         returned by `pf`
           */
-        def <*>[B, C](px: =>Parsley[Tok, B])(implicit ev: P <:< Parsley[Tok, B=>C]): Parsley[C] = new DeepEmbedding.<*>[Tok, B, C](p, px)
+        def <*>[Tok_ <: Tok, B, C](px: =>Parsley[Tok_, B])(implicit ev: P <:< Parsley[Tok_, B=>C]): Parsley[Tok_, C] = new DeepEmbedding.<*>[Tok_, B, C](p, px)
         /**
           * This is the traditional Monadic binding operator for parsers. When the invokee produces a value, the function
           * `f` is used to produce a new parser that continued the computation.
@@ -48,14 +48,14 @@ object Parsley
           * @param f A function that produces the next parser
           * @return The parser produces from the application of `f` on the result of the last parser
           */
-        def flatMap[B](f: A => Parsley[Tok, B]): Parsley[Tok, B] = new DeepEmbedding.>>=(p, f)
+        def flatMap[Tok_ <: Tok, B](f: A => Parsley[Tok_, B]): Parsley[Tok_, B] = new DeepEmbedding.>>=(p, f)
         /**This combinator is an alias for `flatMap(identity)`.*/
-        def flatten[B](implicit ev: A <:< Parsley[Tok, B]): Parsley[Tok, B] = flatMap[B](ev)
+        def flatten[Tok_ <: Tok, B](implicit ev: A <:< Parsley[Tok_, B]): Parsley[Tok_, B] = flatMap[Tok_, B](ev)
 
         /**This combinator is an alias for `flatMap`*/
-        def >>=[B](f: A => Parsley[Tok, B]): Parsley[Tok, B] = flatMap(f)
+        def >>=[Tok_ <: Tok, B](f: A => Parsley[Tok_, B]): Parsley[Tok_, B] = flatMap(f)
         /**This combinator is defined as `lift2((x, f) => f(x), p, f)`. It is pure syntactic sugar.*/
-        def <**>[B](pf: =>Parsley[Tok, A => B]): Parsley[Tok, B] = lift2[Tok, A, A=>B, B]((x, f) => f(x), p, pf)
+        def <**>[Tok_ <: Tok, B](pf: =>Parsley[Tok_, A => B]): Parsley[Tok_, B] = lift2[Tok_, A, A=>B, B]((x, f) => f(x), p, pf)
         /**
           * This is the traditional Alternative choice operator for parsers. Following the parsec semantics precisely,
           * this combinator first tries to parse the invokee. If this is successful, no further action is taken. If the
@@ -67,29 +67,29 @@ object Parsley
           * @return The value produced by the invokee if it was successful, or if it failed without consuming input, the
           *         possible result of parsing q.
           */
-        def <|>[B >: A](q: =>Parsley[Tok, B]): Parsley[Tok, B] = new DeepEmbedding.<|>(p, q)
+        def <|>[Tok_ <: Tok, B >: A](q: =>Parsley[Tok_, B]): Parsley[Tok_, B] = new DeepEmbedding.<|>(p, q)
         /**This combinator is defined as `p <|> pure(x)`. It is pure syntactic sugar.*/
         def </>[B >: A](x: B): Parsley[Tok, B] = this <|> pure(x)
         /**This combinator is an alias for `<|>`.*/
-        def orElse[B >: A](q: =>Parsley[Tok, B]): Parsley[Tok, B] = this <|> q
+        def orElse[Tok_ <: Tok, B >: A](q: =>Parsley[Tok_, B]): Parsley[Tok_, B] = this <|> q
         /**This combinator is an alias for `</>`.*/
         def getOrElse[B >: A](x: B): Parsley[Tok, B] = p </> x
         /**This combinator is defined as `attempt(p) <|> q`. It is pure syntactic sugar.*/
-        def <\>[B >: A](q: Parsley[Tok, B]): Parsley[Tok, B] = attempt(p) <|> q
+        def <\>[Tok_ <: Tok, B >: A](q: Parsley[Tok_, B]): Parsley[Tok_, B] = attempt(p) <|> q
         /**
           * This is the parser that corresponds to a more optimal version of `p.map(_ => x => x) <*> q`. It performs
           * the parse action of both parsers, in order, but discards the result of the invokee.
           * @param q The parser whose result should be returned
           * @return A new parser which first parses `p`, then `q` and returns the result of `q`
           */
-        def *>[A_ >: A, B](q: =>Parsley[Tok, B]): Parsley[Tok, B] = new DeepEmbedding.*>[Tok, A_, B](p, q)
+        def *>[Tok_ <: Tok, A_ >: A, B](q: =>Parsley[Tok_, B]): Parsley[Tok_, B] = new DeepEmbedding.*>[Tok_, A_, B](p, q)
         /**
           * This is the parser that corresponds to a more optimal version of `p.map(x => _ => x) <*> q`. It performs
           * the parse action of both parsers, in order, but discards the result of the second parser.
           * @param q The parser who should be executed but then discarded
           * @return A new parser which first parses `p`, then `q` and returns the result of the `p`
           */
-        def <*[B](q: =>Parsley[Tok, B]): Parsley[Tok, A] = new DeepEmbedding.<*(p, q)
+        def <*[Tok_ <: Tok, B](q: =>Parsley[Tok_, B]): Parsley[Tok_, A] = new DeepEmbedding.<*(p, q)
         /**
           * This is the parser that corresponds to `p *> pure(x)` or a more optimal version of `p.map(_ => x)`.
           * It performs the parse action of the invokee but discards its result and then results the value `x` instead
@@ -98,13 +98,13 @@ object Parsley
           */
         def #>[B](x: B): Parsley[Tok, B] = this *> pure(x)
         /**This combinator is an alias for `*>`*/
-        def >>[B](q: Parsley[Tok, B]): Parsley[Tok, B] = this *> q
+        def >>[Tok_ <: Tok, B](q: Parsley[Tok_, B]): Parsley[Tok_, B] = this *> q
         /**This parser corresponds to `lift2(_+:_, p, ps)`.*/
-        def <+:>[B >: A](ps: =>Parsley[Tok, Seq[B]]): Parsley[Tok, Seq[B]] = lift2[Tok, A, Seq[B], Seq[B]](_ +: _, p, ps)
+        def <+:>[Tok_ <: Tok, B >: A](ps: =>Parsley[Tok_, Seq[B]]): Parsley[Tok_, Seq[B]] = lift2[Tok_, A, Seq[B], Seq[B]](_ +: _, p, ps)
         /**This parser corresponds to `lift2(_::_, p, ps)`.*/
-        def <::>[B >: A](ps: =>Parsley[Tok, List[B]]): Parsley[Tok, List[B]] = lift2[Tok, A, List[B], List[B]](_ :: _, p, ps)
+        def <::>[Tok_ <: Tok, B >: A](ps: =>Parsley[Tok_, List[B]]): Parsley[Tok_, List[B]] = lift2[Tok_, A, List[B], List[B]](_ :: _, p, ps)
         /**This parser corresponds to `lift2((_, _), p, q)`. For now it is sugar, but in future may be more optimal*/
-        def <~>[A_ >: A, B](q: =>Parsley[Tok, B]): Parsley[Tok, (A_, B)] = lift2[Tok, A_, B, (A_, B)]((_, _), p, q)
+        def <~>[Tok_ <: Tok, A_ >: A, B](q: =>Parsley[Tok_, B]): Parsley[Tok_, (A_, B)] = lift2[Tok_, A_, B, (A_, B)]((_, _), p, q)
         /** Filter the value of a parser; if the value returned by the parser matches the predicate `pred` then the
           * filter succeeded, otherwise the parser fails with an empty error
           * @param pred The predicate that is tested against the parser result
@@ -241,7 +241,7 @@ object Parsley
       * @param q If `b` returns `Right` then this parser is executed with the result
       * @return Either the result from `p` or `q` depending on `b`.
       */
-    def branch[A, B, C](b: =>Parsley[Tok, Either[A, B]], p: =>Parsley[Tok, A => C], q: =>Parsley[Tok, B => C]): Parsley[Tok, C] =
+    def branch[Tok, A, B, C](b: =>Parsley[Tok, Either[A, B]], p: =>Parsley[Tok, A => C], q: =>Parsley[Tok, B => C]): Parsley[Tok, C] =
         // TODO This should be converted to use Case instruction from Haskell Parsley, this is too inefficient right now
         // We can then apply some laws and optimisations to it...
         b >>= {
@@ -255,7 +255,7 @@ object Parsley
       * @param q If `p` returns `Left` then this parser is executed with the result
       * @return Either the result from `p` if it returned `Left` or the result of `q` applied to the `Right` from `p`
       */
-    def select[A, B](p: =>Parsley[Tok, Either[A, B]], q: =>Parsley[Tok, A => B]): Parsley[Tok, B] = branch(p, q, pure(identity[B](_)))
+    def select[Tok, A, B](p: =>Parsley[Tok, Either[A, B]], q: =>Parsley[Tok, A => B]): Parsley[Tok, B] = branch(p, q, pure(identity[B](_)))
     /**This function is an alias for `_.flatten`. Provides namesake to Haskell.*/
     def join[Tok, A](p: =>Parsley[Tok, Parsley[Tok, A]]): Parsley[Tok, A] = p.flatten
     /** Given a parser `p`, attempts to parse `p`. If the parser fails, then `attempt` ensures that no input was
@@ -291,7 +291,6 @@ object Parsley
       * @param ps Parsers to be sequenced
       * @return The list containing results, one from each parser, in order
       */
-    // TODO This should not need a type ascription
     def sequence[Tok, A](ps: Parsley[Tok, A]*): Parsley[Tok, List[A]] = ps.foldRight[Parsley[Tok, List[A]]](pure[List[A]](Nil))(_ <::> _)
     /**
       * Like `sequence` but produces a list of parsers to sequence by applying the function `f` to each
@@ -305,7 +304,6 @@ object Parsley
       * Evaluate each of the parsers in `ps` sequentially from left to right, ignoring the results.
       * @param ps Parsers to be performed
       */
-    // TODO This should not need a type ascription
     def skip[Tok](ps: Parsley[Tok, _]*): Parsley[Tok, Unit] = ps.foldRight[Parsley[Tok, Unit]](unit)(_ *> _)
     /**
       * This parser consumes no input and returns the current line number reached in the input stream
@@ -504,16 +502,15 @@ abstract class Parsley[-Tok, +A] private [parsley]
 
     // Internals
     final private [parsley] def findLets[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
-    final private [parsley] def optimised[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
     {
         state.addPred(this)
         if (seen(this)) result(state.addRec(this))
         else if (state.notProcessedBefore(this)) for (_ <- findLetsAux(seen + this, state, ops)) yield state.doNotProcessAgain(this)
         else result(())
     }
-    final private [parsley] def optimised[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
+    final private [parsley] def optimised[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
     {
-        for (p <- this.fix.preprocess(seen + this, sub, label, ops)) yield p.optimise
+        for (p <- this.fix.preprocess[Cont, Tok_, A_](seen + this, sub, label, ops)) yield p.optimise
     }
     final private [parsley] var safe = true
     final private [parsley] var cps = false
@@ -620,7 +617,7 @@ abstract class Parsley[-Tok, +A] private [parsley]
 
     // Abstracts
     // Sub-tree optimisation and fixpoint calculation - Bottom-up
-    protected def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]]
+    protected def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]]
     // Let-finder recursion
     protected def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit]
     // Optimisation - Bottom-up
@@ -634,8 +631,8 @@ private [parsley] object DeepEmbedding
     // Core Embedding
     private [parsley] final class Pure[A](private [Pure] val x: A) extends Parsley[Any, A]
     {
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, A_]] = result(this)
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def preprocess[Cont[_, _], Tok_ <: Any, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] = result(this)
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Push(x))
@@ -645,8 +642,8 @@ private [parsley] object DeepEmbedding
     {
         private [<*>] var pf: Parsley[Tok, A => B] = _
         private [<*>] var px: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
-            if (label == null && pf != null) result(this) else for (pf <- _pf.optimised; px <- _px.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, B_]] =
+            if (label == null && pf != null) result(this) else for (pf <- _pf.optimised[Cont, Tok, A => B]; px <- _px.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -657,7 +654,7 @@ private [parsley] object DeepEmbedding
                 }
                 else <*>(pf, px)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _pf.findLets; _ <- _px.findLets) yield ()
         override def optimise: Parsley[Tok, B] = (pf, px) match
         {
@@ -729,8 +726,8 @@ private [parsley] object DeepEmbedding
     {
         private [<|>] var p: Parsley[Tok, A] = _
         private [<|>] var q: Parsley[Tok, B] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, B_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, B]) yield
             {
                 if (label == null)
                 {
@@ -741,7 +738,7 @@ private [parsley] object DeepEmbedding
                 }
                 else <|>(p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets) yield ()
         override def optimise: Parsley[Tok, B] = (p, q) match
         {
@@ -929,8 +926,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class >>=[Tok, A, B](_p: =>Parsley[Tok, A], private [>>=] var f: A => Parsley[Tok, B], val expected: UnsafeOption[String] = null) extends Parsley[Tok, B]
     {
         private [>>=] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, B_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -940,7 +937,7 @@ private [parsley] object DeepEmbedding
                 }
                 else >>=(p, f, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise: Parsley[Tok, B] = p match
         {
             // CODO: We need to try and identify the fixpoints in the optimised binds, so we can remove the call instructions
@@ -968,12 +965,12 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Satisfy(private [Satisfy] val f: Char => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
     {
-        override def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, C]] =
+        override def preprocess[Cont[_, _], Tok_ <: Char, C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, C]] =
         {
             if (label == null) result(this)
             else result(new Satisfy(f, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Satisfies(f, expected))
@@ -989,8 +986,8 @@ private [parsley] object DeepEmbedding
     {
         private [*>] var p: Parsley[Tok, A] = _
         private [*>] var q: Parsley[Tok, B] = _
-        override def preprocess[Cont[_, _], B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, B_]] =
-            if (label == null && p != null) ops.wrap(this) else for (p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, B_ >: B](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, B_]] =
+            if (label == null && p != null) ops.wrap(this) else for (p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, B]) yield
             {
                 if (label == null)
                 {
@@ -1001,7 +998,7 @@ private [parsley] object DeepEmbedding
                 }
                 else *>(p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets) yield ()
         @tailrec override def optimise: Parsley[Tok, B] = p match
         {
@@ -1075,8 +1072,8 @@ private [parsley] object DeepEmbedding
     {
         private [<*] var p: Parsley[Tok, A] = _
         private [<*] var q: Parsley[Tok, B] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) ops.wrap(this) else for (p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) ops.wrap(this) else for (p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, B]) yield
             {
                 if (label == null)
                 {
@@ -1087,7 +1084,7 @@ private [parsley] object DeepEmbedding
                 }
                 else <*(p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets) yield ()
         @tailrec override def optimise: Parsley[Tok, A] = q match
         {
@@ -1147,8 +1144,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Attempt[Tok, A](_p: =>Parsley[Tok, A]) extends Parsley[Tok, A]
     {
         private [Attempt] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1158,7 +1155,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Attempt(p)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             val handler = state.freshLabel()
@@ -1173,8 +1170,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Look[Tok, A](_p: =>Parsley[Tok, A]) extends Parsley[Tok, A]
     {
         private [Look] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1184,7 +1181,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Look(p)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             val handler = state.freshLabel()
@@ -1199,12 +1196,12 @@ private [parsley] object DeepEmbedding
     private [parsley] sealed trait MZero[Tok] extends Parsley[Tok, Nothing]
     private [parsley] class Empty(val expected: UnsafeOption[String] = null) extends MZero[Any]
     {
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, N]] =
+        override def preprocess[Cont[_, _], Tok_ <: Any, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
         {
             if (label == null) result(this)
             else result(new Empty(label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Empty(expected))
@@ -1212,12 +1209,12 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Fail(private [Fail] val msg: String, val expected: UnsafeOption[String] = null) extends MZero[Any]
     {
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, N]] =
+        override def preprocess[Cont[_, _], Tok_ <: Any, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
         {
             if (label == null) result(this)
             else result(new Fail(msg, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Fail(msg, expected))
@@ -1225,12 +1222,12 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Unexpected(private [Unexpected] val msg: String, val expected: UnsafeOption[String] = null) extends MZero[Any]
     {
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, N]] =
+        override def preprocess[Cont[_, _], Tok_ <: Any, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
         {
             if (label == null) result(this)
             else result(new Unexpected(msg, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Unexpected(msg, expected))
@@ -1239,12 +1236,12 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Fixpoint[Tok, A](var _p: ()=>Parsley[Tok, A], val expected: UnsafeOption[String] = null) extends Parsley[Tok, A]
     {
         private [Fixpoint] lazy val p = _p()
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
         {
             if (label == null) result(this)
             else result(new Fixpoint(_p, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Call(p, expected))
@@ -1254,9 +1251,9 @@ private [parsley] object DeepEmbedding
     {
         private [Subroutine] var p: Parsley[Tok, A] = _
 
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
         {
-            if (p == null) for (p <- _p.optimised(seen, sub, null, ops)) yield
+            if (p == null) for (p <- _p.optimised[Cont, Tok, A](seen, sub, null, ops)) yield
             {
                 if (label == null)
                 {
@@ -1268,7 +1265,7 @@ private [parsley] object DeepEmbedding
             else if (label == null) result(this)
             else result(Subroutine(p, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def optimise = if (p.size == 1) p else this
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1279,12 +1276,12 @@ private [parsley] object DeepEmbedding
     // Intrinsic Embedding
     private [parsley] final class CharTok(private [CharTok] val c: Char, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
     {
-        override def preprocess[Cont[_, _], C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, C]] =
+        override def preprocess[Cont[_, _], Tok_ <: Char, C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, C]] =
         {
             if (label == null) result(this)
             else result(new CharTok(c, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += instructions.CharTok(c, expected))
@@ -1292,12 +1289,12 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class StringTok(private [StringTok] val s: String, val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
     {
-        override def preprocess[Cont[_, _], S >: String](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Char, S]] =
+        override def preprocess[Cont[_, _], Tok_ <: Char, S >: String](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, S]] =
         {
             if (label == null) result(this)
             else result(new StringTok(s, label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def optimise = s match
         {
             case "" => new Pure("")
@@ -1313,8 +1310,8 @@ private [parsley] object DeepEmbedding
     {
         private [Lift2] var p: Parsley[Tok, A] = _
         private [Lift2] var q: Parsley[Tok, B] = _
-        override def preprocess[Cont[_, _], C_ >: C](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, C_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, C_ >: C](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, C_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, B]) yield
             {
                 if (label == null)
                 {
@@ -1325,7 +1322,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Lift2(f, p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1339,8 +1336,8 @@ private [parsley] object DeepEmbedding
         private [Lift3] var p: Parsley[Tok, A] = _
         private [Lift3] var q: Parsley[Tok, B] = _
         private [Lift3] var r: Parsley[Tok, C] = _
-        override def preprocess[Cont[_, _], D_ >: D](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, D_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; q <- _q.optimised; r <- _r.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, D_ >: D](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, D_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, B]; r <- _r.optimised[Cont, Tok, C]) yield
             {
                 if (label == null)
                 {
@@ -1352,7 +1349,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Lift3(f, p, q, r)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets; _ <- _r.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1365,8 +1362,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class FastFail[Tok, A](_p: =>Parsley[Tok, A], private [FastFail] val msggen: A => String, val expected: UnsafeOption[String] = null) extends MZero[Tok]
     {
         private [FastFail] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, N]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1376,7 +1373,7 @@ private [parsley] object DeepEmbedding
                 }
                 else FastFail(p, msggen, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case Pure(x) => new Fail(msggen(x))
@@ -1392,8 +1389,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class FastUnexpected[Tok, A](_p: =>Parsley[Tok, A], private [FastUnexpected] val msggen: A => String, val expected: UnsafeOption[String] = null) extends MZero[Tok]
     {
         private [FastUnexpected] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, N]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1403,7 +1400,7 @@ private [parsley] object DeepEmbedding
                 }
                 else FastUnexpected(p, msggen, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case Pure(x) => new Unexpected(msggen(x))
@@ -1419,8 +1416,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Ensure[Tok, A](_p: =>Parsley[Tok, A], private [Ensure] val pred: A => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Tok, A]
     {
         private [Ensure] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1430,7 +1427,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Ensure(p, pred, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case px@Pure(x) => if (pred(x)) px else new Empty
@@ -1445,8 +1442,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Guard[Tok, A](_p: =>Parsley[Tok, A], private [Guard] val pred: A => Boolean, private [Guard] val msg: String, val expected: UnsafeOption[String] = null) extends Parsley[Tok, A]
     {
         private [Guard] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1456,7 +1453,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Guard(p, pred, msg, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case px@Pure(x) => if (pred(x)) px else new Fail(msg)
@@ -1471,8 +1468,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class FastGuard[Tok, A](_p: =>Parsley[Tok, A], private [FastGuard] val pred: A => Boolean, private [FastGuard] val msggen: A => String, val expected: UnsafeOption[String] = null) extends Parsley[Tok, A]
     {
         private [FastGuard] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1482,7 +1479,7 @@ private [parsley] object DeepEmbedding
                 }
                 else FastGuard(p, pred, msggen, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case px@Pure(x) => if (pred(x)) px else new Fail(msggen(x))
@@ -1497,8 +1494,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Many[Tok, A](_p: =>Parsley[Tok, A]) extends Parsley[Tok, List[A]]
     {
         private [Many] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, L]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, L]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1508,7 +1505,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Many(p)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case _: Pure[A] => throw new Exception("many given parser which consumes no input")
@@ -1531,8 +1528,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class SkipMany[Tok, A](_p: =>Parsley[Tok, A]) extends Parsley[Tok, Nothing]
     {
         private [SkipMany] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, N]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1542,7 +1539,7 @@ private [parsley] object DeepEmbedding
                 }
                 else SkipMany(p)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def optimise = p match
         {
             case _: Pure[A] => throw new Exception("skipMany given parser which consumes no input")
@@ -1566,8 +1563,8 @@ private [parsley] object DeepEmbedding
     {
         private [ChainPost] var p: Parsley[Tok, A] = _
         private [ChainPost] var op: Parsley[Tok, A => A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; op <- _op.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; op <- _op.optimised[Cont, Tok, A => A]) yield
             {
                 if (label == null)
                 {
@@ -1578,7 +1575,7 @@ private [parsley] object DeepEmbedding
                 }
                 else ChainPost(p, op)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _op.findLets) yield ()
         override def optimise = op match
         {
@@ -1606,8 +1603,8 @@ private [parsley] object DeepEmbedding
     {
         private [ChainPre] var p: Parsley[Tok, A] = _
         private [ChainPre] var op: Parsley[Tok, A => A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; op <- _op.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; op <- _op.optimised[Cont, Tok, A => A]) yield
             {
                 if (label == null)
                 {
@@ -1618,7 +1615,7 @@ private [parsley] object DeepEmbedding
                 }
                 else ChainPre(p, op)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _op.findLets) yield ()
         override def optimise = op match
         {
@@ -1645,8 +1642,8 @@ private [parsley] object DeepEmbedding
     {
         private [Chainl] var p: Parsley[Tok, A] = _
         private [Chainl] var op: Parsley[Tok, (A, A) => A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; op <- _op.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; op <- _op.optimised[Cont, Tok, (A, A) => A]) yield
             {
                 if (label == null)
                 {
@@ -1657,7 +1654,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Chainl(p, op)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _op.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1680,8 +1677,8 @@ private [parsley] object DeepEmbedding
     {
         private [Chainr] var p: Parsley[Tok, A] = _
         private [Chainr] var op: Parsley[Tok, (A, A) => A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; op <- _op.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; op <- _op.optimised[Cont, Tok, (A, A) => A]) yield
             {
                 if (label == null)
                 {
@@ -1692,7 +1689,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Chainr(p, op)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _op.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit]=
         {
@@ -1715,8 +1712,8 @@ private [parsley] object DeepEmbedding
     {
         private [SepEndBy1] var p: Parsley[Tok, A] = _
         private [SepEndBy1] var sep: Parsley[Tok, B] = _
-        override def preprocess[Cont[_, _], L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, L]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; sep <- _sep.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, L]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]; sep <- _sep.optimised[Cont, Tok, B]) yield
             {
                 if (label == null)
                 {
@@ -1727,7 +1724,7 @@ private [parsley] object DeepEmbedding
                 }
                 else SepEndBy1(p, sep)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _sep.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1749,8 +1746,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class ManyUntil[Tok, A](_body: Parsley[Tok, Any]) extends Parsley[Tok, List[A]]
     {
         private [ManyUntil] var body: Parsley[Tok, Any] = _
-        override def preprocess[Cont[_, _], L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, L]] =
-            if (label == null && body != null) result(this) else for (body <- _body.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, L >: List[A]](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, L]] =
+            if (label == null && body != null) result(this) else for (body <- _body.optimised[Cont, Tok, Any]) yield
             {
                 if (label == null)
                 {
@@ -1760,7 +1757,7 @@ private [parsley] object DeepEmbedding
                 }
                 else ManyUntil(body)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _body.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _body.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             val start = state.freshLabel()
@@ -1779,8 +1776,8 @@ private [parsley] object DeepEmbedding
         private [Ternary] var b: Parsley[Tok, Boolean] = _
         private [Ternary] var p: Parsley[Tok, A] = _
         private [Ternary] var q: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && b != null) result(this) else for (b <- _b.optimised; p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && b != null) result(this) else for (b <- _b.optimised[Cont, Tok, Boolean]; p <- _p.optimised[Cont, Tok, A]; q <- _q.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1792,7 +1789,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Ternary(b, p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _b.findLets; _ <- _p.findLets; _ <- _q.findLets) yield ()
         override def optimise = b match
         {
@@ -1820,8 +1817,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class NotFollowedBy[Tok, A](_p: =>Parsley[Tok, A], val expected: UnsafeOption[String] = null) extends Parsley[Tok, Nothing]
     {
         private [NotFollowedBy] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, N]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1831,7 +1828,7 @@ private [parsley] object DeepEmbedding
                 }
                 else NotFollowedBy(p, label)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             val handler = state.freshLabel()
@@ -1845,12 +1842,12 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Eof(val expected: UnsafeOption[String] = null) extends Parsley[Any, Nothing]
     {
-        override def preprocess[Cont[_, _], N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, N]] =
+        override def preprocess[Cont[_, _], Tok_ <: Any, N >: Nothing](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, N]] =
         {
             if (label == null) result(this)
             else result(new Eof(label))
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Eof(expected))
@@ -1858,8 +1855,8 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] object Line extends Parsley[Any, Int]
     {
-        override def preprocess[Cont[_, _], I >: Int](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, I]] = result(this)
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def preprocess[Cont[_, _], Tok_ <: Any, I >: Int](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, I]] = result(this)
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += instructions.Line)
@@ -1867,8 +1864,8 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] object Col extends Parsley[Any, Int]
     {
-        override def preprocess[Cont[_, _], I >: Int](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, I]] = result(this)
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def preprocess[Cont[_, _], Tok_ <: Any, I >: Int](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, I]] = result(this)
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += instructions.Col)
@@ -1876,8 +1873,8 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Get[S](v: Var) extends Parsley[Any, S]
     {
-        override def preprocess[Cont[_, _], S_ >: S](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, S_]] = result(this)
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def preprocess[Cont[_, _], Tok_ <: Any, S_ >: S](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, S_]] = result(this)
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Get(v.v))
@@ -1886,8 +1883,8 @@ private [parsley] object DeepEmbedding
     private [parsley] final class Put[Tok, S](private [Put] val v: Var, _p: =>Parsley[Tok, S]) extends Parsley[Tok, Unit]
     {
         private [Put] var p: Parsley[Tok, S] = _
-        override def preprocess[Cont[_, _], U >: Unit](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, U]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, U >: Unit](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, U]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, S]) yield
             {
                 if (label == null)
                 {
@@ -1897,7 +1894,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Put(v, p)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             p.codeGen |>
@@ -1906,8 +1903,8 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class Modify[S](v: Var, f: S => S) extends Parsley[Any, S]
     {
-        override def preprocess[Cont[_, _], S_ >: S](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Any, S_]] = result(this)
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
+        override def preprocess[Cont[_, _], Tok_ <: Any, S_ >: S](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, S_]] = result(this)
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             result(instrs += new instructions.Modify(v.v, f))
@@ -1917,8 +1914,8 @@ private [parsley] object DeepEmbedding
     {
         private [Local] var p: Parsley[Tok, S] = _
         private [Local] var q: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised; q <- _q.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, S]; q <- _q.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1929,7 +1926,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Local(v, p, q)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] =
             for (_ <- _p.findLets; _ <- _q.findLets) yield ()
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
@@ -1943,20 +1940,20 @@ private [parsley] object DeepEmbedding
     }
     private [parsley] final class ErrorRelabel[Tok, +A](p: =>Parsley[Tok, A], msg: String) extends Parsley[Tok, A]
     {
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
         {
             if (label == null) p.optimised(seen, sub, msg, ops)
             else p.optimised
         }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = p.findLets
         override def optimise = throw new Exception("Error relabelling should not be in optimisation!")
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = throw new Exception("Error relabelling should not be in code gen!")
     }
     private [parsley] final class Debug[Tok, A](_p: =>Parsley[Tok, A], name: String, break: Breakpoint) extends Parsley[Tok, A]
     {
         private [Debug] var p: Parsley[Tok, A] = _
-        override def preprocess[Cont[_, _], A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok, A_]] =
-            if (label == null && p != null) result(this) else for (p <- _p.optimised) yield
+        override def preprocess[Cont[_, _], Tok_ <: Tok, A_ >: A](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, A_]] =
+            if (label == null && p != null) result(this) else for (p <- _p.optimised[Cont, Tok, A]) yield
             {
                 if (label == null)
                 {
@@ -1966,7 +1963,7 @@ private [parsley] object DeepEmbedding
                 }
                 else Debug(p, name, break)
             }
-        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
+        override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = _p.findLets
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
             val handler = state.freshLabel()
@@ -2075,7 +2072,7 @@ private [parsley] object DeepEmbedding
             res.p = p
             res
         }
-        def unapply[A](self: Subroutine[A]): Option[Parsley[A]] = Some(self.p)
+        def unapply[Tok, A](self: Subroutine[Tok, A]): Option[Parsley[Tok, A]] = Some(self.p)
     }
     private [DeepEmbedding] object CharTok
     {

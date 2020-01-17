@@ -48,7 +48,7 @@ object Char
     val anyChar: Parsley[Char, Char] = satisfy(_ => true) ? "any character"
 
     /**Parses a whitespace character (either ' ' or '\t'). Returns the parsed character.*/
-    val space: Parsley[Char] = satisfy(isSpace) ? "space/tab"
+    val space: Parsley[Char, Char] = satisfy(isSpace) ? "space/tab"
 
     /**Skips zero or more whitespace characters. See also `skipMany`. Uses space.*/
     val spaces: Parsley[Char, Unit] = skipMany(space)

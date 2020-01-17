@@ -29,7 +29,7 @@ object Combinator
     def decide[Tok, A](p: =>Parsley[Tok, Option[A]]): Parsley[Tok, A] = for (opt <- p; if opt.isDefined) yield opt.get
 
     /**`decide(p, q)` removes the option from inside parser `p`, if it returned `None` then `q` is executed.*/
-    def decide[A](p: =>Parsley[Option[A]], q: =>Parsley[A]): Parsley[A] =
+    def decide[Tok, A](p: =>Parsley[Tok, Option[A]], q: =>Parsley[Tok, A]): Parsley[Tok, A] =
         select(p <#>
         {
             case Some(x) => Right(x)
