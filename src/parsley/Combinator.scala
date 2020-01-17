@@ -10,7 +10,7 @@ object Combinator
     def choice[Tok, A](ps: Parsley[Tok, A]*): Parsley[Tok, A] = ps.reduceLeftOption(_<|>_).getOrElse(empty)
 
     /**`attemptChoice(ps)` tries to apply the parsers in the list `ps` in order, until one of them succeeds.
-      *  Returns the value of the succeeding parser. Utilises <\> vs choice's <|>.*/
+      *  Returns the value of the succeeding parser. Utilises `<\>` vs choice's `<|>`.*/
     def attemptChoice[Tok, A](ps: Parsley[Tok, A]*): Parsley[Tok, A] = ps.reduceLeftOption(_<\>_).getOrElse(empty)
 
     /** `repeat(n, p)` parses `n` occurrences of `p`. If `n` is smaller or equal to zero, the parser is
@@ -28,14 +28,22 @@ object Combinator
     /**`decide(p)` removes the option from inside parser `p`, and if it returned `None` will fail.*/
     def decide[Tok, A](p: =>Parsley[Tok, Option[A]]): Parsley[Tok, A] = for (opt <- p; if opt.isDefined) yield opt.get
 
-    /**`optional(p)` tries to apply parser `p`. It will parse `p` or nothing. It only fails if `p`
+    /**`decide(p, q)` removes the option from inside parser `p`, if it returned `None` then `q` is executed.*/
+    def decide[A](p: =>Parsley[Option[A]], q: =>Parsley[A]): Parsley[A] =
+        select(p <#>
+        {
+            case Some(x) => Right(x)
+            case None => Left(())
+        }, q.map[Unit => A](x => _ => x))
+
+    /**optional(p) tries to apply parser `p`. It will parse `p` or nothing. It only fails if `p`
       * fails after consuming input. It discards the result of `p`.*/
-    def optional[Tok, A](p: =>Parsley[Tok, A]): Parsley[Tok, Unit] = (p *> unit).getOrElse(())
+    def optional[Tok](p: =>Parsley[Tok, _]): Parsley[Tok, Unit] = void(p).getOrElse(())
 
     /**`between(open, close, p)` parses `open`, followed by `p` and `close`. Returns the value returned by `p`.*/
-    def between[Tok, O, C, A](open: =>Parsley[Tok, O],
-                              close: =>Parsley[Tok, C],
-                              p: =>Parsley[Tok, A]): Parsley[Tok, A] = open *> p <* close
+    def between[Tok, A](open: =>Parsley[Tok, _],
+                        close: =>Parsley[Tok, _],
+                        p: =>Parsley[Tok, A]): Parsley[Tok, A] = open *> p <* close
 
     /**`some(p)` applies the parser `p` *one* or more times. Returns a list of the returned values of `p`.*/
     def some[Tok, A](p: =>Parsley[Tok, A]): Parsley[Tok, List[A]] = manyN(1, p)
@@ -111,14 +119,14 @@ object Combinator
       * returned by `p`.*/
     def chainr1[Tok, A](p: =>Parsley[Tok, A], op: =>Parsley[Tok, (A, A) => A]): Parsley[Tok, A] = new DeepEmbedding.Chainr(p, op)
 
-    /**`chainPre(p, op)` parses many prefixed applications of `op` onto a single final result of `p`*/
-    def chainPre[Tok, A](p: =>Parsley[Tok, A], op: =>Parsley[Tok, A => A]): Parsley[Tok, A] = new DeepEmbedding.ChainPre(p, op)
+    /**`chainPre(op, p)` parses many prefixed applications of `op` onto a single final result of `p`*/
+    def chainPre[Tok, A](op: =>Parsley[Tok, A => A], p: =>Parsley[Tok, A]): Parsley[Tok, A] = new DeepEmbedding.ChainPre(p, op)
 
     /**chainl1(p, op) parses *one* or more occurrences of `p`, separated by `op`. Returns a value
       * obtained by a left associative application of all functions return by `op` to the values
       * returned by `p`. This parser can for example be used to eliminate left recursion which
       * typically occurs in expression grammars.*/
-    def chainl1[Tok, A](p: =>Parsley[Tok, A], op: =>Parsley[Tok, (A, A) => A]): Parsley[Tok, A] = new DeepEmbedding.Chainl(p, op)
+    def chainl1[Tok, A](p: =>Parsley[Tok, A], op: =>Parsley[Tok, (A, A) => A]): Parsley[Tok, A] = new DeepEmbedding.Chainl(+p, op)
 
     /**`chainPost(p, op)` parses one occurrence of `p`, followed by many postfix applications of `op`
       * that associate to the left.*/
@@ -126,6 +134,9 @@ object Combinator
 
     /**This parser only succeeds at the end of the input. This is a primitive parser.*/
     val eof: Parsley[Any, Unit] = new DeepEmbedding.*>(new DeepEmbedding.Eof, unit)
+
+    /**This parser only succeeds if there is still more input.*/
+    val more: Parsley[Any, Unit] = notFollowedBy(eof)
 
     /**`notFollowedBy(p)` only succeeds when parser `p` fails. This parser does not consume any input.
       * This parser can be used to implement the 'longest match' rule. For example, when recognising
@@ -148,5 +159,50 @@ object Combinator
         lazy val _p = p
         lazy val _end = end
         notFollowedBy(_end) *> (_p <::> manyUntil(_p, _end))
+    }
+
+    /** `when(p, q)` will first perform `p`, and if the result is `true` will then execute `q` or else return unit.
+      * @param p The first parser to parse
+      * @param q If `p` returns `true` then this parser is executed
+      * @return ()
+      */
+    def when[Tok](p: =>Parsley[Tok, Boolean], q: =>Parsley[Tok, Unit]): Parsley[Tok, Unit] = p ?: (q, unit)
+
+    /** `whileP(p)` will continue to run `p` until it returns `false`. This is often useful in conjunction with stateful
+      * parsers.
+      * @param p The parser to continuously execute
+      * @return ()
+      */
+    def whileP[Tok](p: =>Parsley[Tok, Boolean]): Parsley[Tok, Unit] =
+    {
+        lazy val whilePP: Parsley[Tok, Unit] = when(p, whilePP)
+        whilePP
+    }
+
+    /** `forP(v, init, cond, step, body)` behaves much like a traditional for loop using variable `v` as the loop
+      * variable and `init`, `cond`, `step` and `body` as parsers which control the loop itself. This is useful for
+      * performing certain context sensitive tasks. For instance, to read an equal number of as, bs and cs you can do:
+      *
+      * {{{
+      * put(v1, 0) *>
+      * many('a' *> modify[Int](v1, _+1)) *>
+      * forP[Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'b') *>
+      * forP[Int](v2, get[Int](v1), pure(_ != 0), pure(_ - 1), 'c')
+      * }}}
+      *
+      * The value of `v` is reset on exiting this parser. This is to preserve the limited register numbers.
+      *
+      * @param v The address the induction variable is stored in
+      * @param init The initial value that register v should take
+      * @param cond The condition by which the loop terminates
+      * @param step The change in induction variable on each iteration
+      * @param body The body of the loop performed each iteration
+      * @return ()
+      */
+    def forP[Tok, A](v: Var, init: =>Parsley[Tok, A], cond: =>Parsley[Tok, A => Boolean], step: =>Parsley[Tok, A => A], body: =>Parsley[Tok, _]): Parsley[Tok, Unit] =
+    {
+        val _cond = gets(v, cond)
+        val _step = put(v, gets(v, step))
+        local(v, init, when(_cond, whileP(body *> _step *> _cond)))
     }
 }

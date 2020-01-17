@@ -1,4 +1,5 @@
-import parsley.Char.{charLift, digit, stringLift}
+import parsley.Char.digit
+import parsley.Implicits.{charLift, stringLift}
 import parsley.Combinator.{chainPost, chainPre, chainl1, chainr1}
 import parsley.ExpressionParser._
 import parsley.Parsley._
@@ -25,19 +26,19 @@ class ExpressionParserTests extends ParsleyTest
 
     "chainPre" must "parse an operatorless value" in
     {
-        runParser(chainPre('1' #> 1, '+' #> ((x: Int) => x + 1)), "1") should be (Success(1))
+        runParser(chainPre('+' #> ((x: Int) => x + 1), '1' #> 1), "1") should be (Success(1))
     }
     it must "parse all operators that precede a value" in
     {
-        runParser(chainPre('1' #> 1, '+' #> ((x: Int) => x + 1)), "+++++++++++1") should not be a [Failure]
+        runParser(chainPre('+' #> ((x: Int) => x + 1), '1' #> 1), "+++++++++++1") should not be a [Failure]
     }
     it must "fail if the final value is absent" in
     {
-        runParser(chainPre('1' #> 1, '+' #> ((x: Int) => x + 1)), "+++++++++++") shouldBe a [Failure]
+        runParser(chainPre('+' #> ((x: Int) => x + 1), '1' #> 1), "+++++++++++") shouldBe a [Failure]
     }
     it must "apply the functions" in
     {
-        runParser(chainPre('1' #> 1, '+' #> ((x: Int) => x + 1)), "+++++++++++1") should be (Success(12))
+        runParser(chainPre('+' #> ((x: Int) => x + 1), '1' #> 1), "+++++++++++1") should be (Success(12))
     }
 
     "chainr1" must "require an initial value" in

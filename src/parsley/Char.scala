@@ -1,16 +1,12 @@
 package parsley
 
 import parsley.Parsley._
+import parsley.Implicits.charLift
 
 import scala.annotation.switch
-import scala.language.implicitConversions
 
 object Char
 {
-    // Implicit Conversions
-    @inline implicit def stringLift(str: String): Parsley[Char, String] = string(str)
-    @inline implicit def charLift(c: Char): Parsley[Char, Char] = char(c)
-
     /** Reads a character from the input stream and returns it, else fails if the character is not found at the head
       * of the stream.
       * @param c The character to search for
@@ -52,7 +48,7 @@ object Char
     val anyChar: Parsley[Char, Char] = satisfy(_ => true) ? "any character"
 
     /**Parses a whitespace character (either ' ' or '\t'). Returns the parsed character.*/
-    val space: Parsley[Char, Char] = satisfy(isSpace) ? "space/tab"
+    val space: Parsley[Char] = satisfy(isSpace) ? "space/tab"
 
     /**Skips zero or more whitespace characters. See also `skipMany`. Uses space.*/
     val spaces: Parsley[Char, Unit] = skipMany(space)
