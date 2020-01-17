@@ -12,7 +12,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[Tok, A](p: Parsley[Tok, A], input: String): Result[A] = runParser[Tok, A](p, input.toCharArray)
+    def runParser[A](p: Parsley[Char, A], input: String): Result[A] = runParser[Char, A](p, input.toCharArray)
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * array, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -20,7 +20,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Char]): Result[A] = new Context(p.threadSafeInstrs, input).runParser()
+    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Tok])(implicit conv: InputPrep[Tok]): Result[A] = new Context(p.threadSafeInstrs, input).runParser()
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * string, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -29,7 +29,7 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[Tok, A](p: Parsley[Tok, A], input: String, ctx: Context): Result[A] = runParser[Tok, A](p, input.toCharArray, ctx)
+    def runParser[A](p: Parsley[Char, A], input: String, ctx: Context): Result[A] = runParser[Char, A](p, input.toCharArray, ctx)
     /** This method is responsible for actually executing parsers. Given a `Parsley[A]` and an input
       * array, will parse the string with the parser. The result is either a `Success` or a `Failure`.
       * @param p The parser to run
@@ -38,23 +38,23 @@ package object parsley
       * @tparam A The type of the result of parsing
       * @return Either a success with a value of type `A` or a failure with error message
       */
-    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Char], ctx: Context): Result[A] = ctx(p.threadSafeInstrs, input).runParser()
-    
+    def runParser[Tok, A](p: Parsley[Tok, A], input: Array[Tok], ctx: Context)(implicit conv: InputPrep[Tok]): Result[A] = ctx(p.threadSafeInstrs, input).runParser()
+
     // Public API - With context reuse
     /** This method allows you to run a parser with a cached context, which improves performance. 
      *  If no implicit context can be found, the parsley default context is used. This will
      *  cause issues with multi-threaded execution of parsers. In order to mitigate these issues,
      *  each thread should request its own context with `parsley.giveContext`. This value may be
      *  implicit for convenience.*/
-    def runParserFastUnsafe[Tok, A](p: Parsley[Tok, A], input: String)(implicit ctx: Context = internalCtx): Result[A] = runParserFastUnsafe[Tok, A](p, input.toCharArray, ctx)
-    private [parsley] def runParserFastUnsafe[Tok, A](p: Parsley[Tok, A], input: Array[Char], ctx: Context): Result[A] = ctx(p.instrs, input).runParser()
+    def runParserFastUnsafe[A](p: Parsley[Char, A], input: String)(implicit ctx: Context = internalCtx): Result[A] = runParserFastUnsafe[Char, A](p, input.toCharArray, ctx)
+    private [parsley] def runParserFastUnsafe[Tok, A](p: Parsley[Tok, A], input: Array[Tok], ctx: Context)(implicit conv: InputPrep[Tok]): Result[A] = ctx(p.instrs, input).runParser()
 
     /**
       * This method allows you to run parsers in parallel in a thread-safe fashion. This is safer
       * than runParser in the case where the parser maintains internal states, but is otherwise
       * likely slower for serial executions of the same parser.
       */
-    def runParserThreadSafe[Tok, A](p: Parsley[Tok, A], input: String, ctx: Context = giveContext): Result[A] = ctx(p.threadSafeInstrs, input.toCharArray).runParser()
+    def runParserThreadSafe[A](p: Parsley[Char, A], input: String, ctx: Context = giveContext): Result[A] = ctx(p.threadSafeInstrs, input.toCharArray).runParser()
 
     /**
       * This function returns a fresh Context. Contexts are used by the parsers to store their state.
@@ -62,7 +62,7 @@ package object parsley
       * execution contexts due to multi-threaded parsing.
       * @return A fresh execution context for parsers
       */
-    def giveContext: Context = new Context(null, Array.emptyCharArray)
+    def giveContext: Context = new Context(null, Array.empty)
 
     // Internals
     private [parsley] val internalCtx = giveContext
@@ -130,6 +130,20 @@ package object parsley
     @implicitAmbiguous("Must specify the type for get operation; S cannot be Nothing")
     implicit def neqAmbig1[A] : A =!= A = null
     implicit def neqAmbig2[A] : A =!= A = null
+
+    private [parsley] trait InputPrep[Tok] extends (Array[Tok] => Array[Any])
+    implicit def anyRefArray[A <: AnyRef]: InputPrep[A] = _.asInstanceOf[Array[Any]]
+    implicit def anyArray[A]: InputPrep[A] = arr =>
+    {
+        val anyArr = new Array[Any](arr.length)
+        var i = 0
+        while (i < arr.length)
+        {
+            anyArr(i) = arr(i)
+            i += 1
+        }
+        anyArr
+    }
     
     // This is designed to be a lighter-weight wrapper around Array to make it resizeable
     import scala.reflect.ClassTag

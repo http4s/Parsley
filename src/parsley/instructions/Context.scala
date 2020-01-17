@@ -20,7 +20,7 @@ private [instructions] final class State(val offset: Int, val line: Int, val col
 }
 
 final class Context private [parsley] (private [instructions] var instrs: Array[Instr],
-                                       private [instructions] var input: Array[Char])
+                                       private [instructions] var input: Array[Any])
 {
     private [instructions] val stack: ArrayStack[Any] = new ArrayStack()
     private [instructions] var offset: Int = 0
@@ -178,11 +178,11 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
     }
 
     private [instructions] def inc(): Unit = pc += 1
-    private [instructions] def nextChar: Char = input(offset)
+    private [instructions] def nextChar: Char = input(offset).asInstanceOf[Char]
     private [instructions] def moreInput: Boolean = offset < inputsz
     
     // Allows us to reuse a context, helpful for benchmarking and potentially user applications
-    private [parsley] def apply(_instrs: Array[Instr], _input: Array[Char]): Context = 
+    private [parsley] def apply(_instrs: Array[Instr], _input: Array[Any]): Context =
     {
         instrs = _instrs
         input = _input

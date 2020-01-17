@@ -669,9 +669,9 @@ private [parsley] class TokenEscape(_expected: UnsafeOption[String]) extends Ins
                     }
                     else return false
                 case 'D' => //DC1 DC2 DC3 DC4 DEL DLE
-                    if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1): @switch) match
+                    if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1).asInstanceOf[Char]: @switch) match
                     {
-                        case 'C' => (ctx.input(ctx.offset + 2): @switch) match
+                        case 'C' => (ctx.input(ctx.offset + 2).asInstanceOf[Char]: @switch) match
                         {
                             case '1' => ctx.offset += 3; ctx.col += 3; escapeChar = '\u0011'
                             case '2' => ctx.offset += 3; ctx.col += 3; escapeChar = '\u0012'
@@ -695,7 +695,7 @@ private [parsley] class TokenEscape(_expected: UnsafeOption[String]) extends Ins
                         ctx.col += 2
                         escapeChar = '\u0019'
                     }
-                    else if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1): @switch) match
+                    else if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1).asInstanceOf[Char]: @switch) match
                     {
                         case 'N' =>
                             if (ctx.input(ctx.offset + 2) == 'Q') { ctx.offset += 3; ctx.col += 3; escapeChar = '\u0005' }
@@ -792,7 +792,7 @@ private [parsley] class TokenEscape(_expected: UnsafeOption[String]) extends Ins
                         ctx.col += 2
                         escapeChar = '\u0020'
                     }
-                    else if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1): @switch) match
+                    else if (ctx.offset + 2 < ctx.inputsz) (ctx.input(ctx.offset + 1).asInstanceOf[Char]: @switch) match
                     {
                         case 'O' =>
                             if (ctx.input(ctx.offset + 2) == 'H') { ctx.offset += 3; ctx.col += 3; escapeChar = '\u0001' }
@@ -1182,7 +1182,7 @@ private [parsley] class TokenKeyword(_keyword: String, letter: TokenSet, caseSen
         {
             while (j < strsz)
             {
-                val c = if (caseSensitive) input(i) else input(i).toLower
+                val c = if (caseSensitive) input(i).asInstanceOf[Char] else input(i).asInstanceOf[Char].toLower
                 if (c != keyword(j))
                 {
                     ctx.fail(expected)
@@ -1193,7 +1193,7 @@ private [parsley] class TokenKeyword(_keyword: String, letter: TokenSet, caseSen
             }
             ctx.col += strsz
             ctx.offset = i
-            if (i < inputsz && letter(input(i))) ctx.fail(expectedEnd)
+            if (i < inputsz && letter(input(i).asInstanceOf[Char])) ctx.fail(expectedEnd)
             else ctx.inc()
         }
         else ctx.fail(expected)
@@ -1230,7 +1230,7 @@ private [parsley] class TokenOperator_(_operator: String, letter: TokenSet, _exp
             }
             ctx.col += strsz
             ctx.offset = i
-            if (i < inputsz && letter(input(i))) ctx.fail(expectedEnd)
+            if (i < inputsz && letter(input(i).asInstanceOf[Char])) ctx.fail(expectedEnd)
             else ctx.inc()
         }
         else ctx.fail(expected)
