@@ -1,6 +1,6 @@
 import parsley.{Failure, Parsley, Success, Var, runParser}
 import parsley.Parsley._
-import parsley.Char.{char, satisfy}
+import parsley.Char.char
 import parsley.Implicits.{charLift, stringLift}
 
 class CoreTests extends ParsleyTest
@@ -27,7 +27,7 @@ class CoreTests extends ParsleyTest
 
     they must "only consume a single character of input at most" in
     {
-        var res = runParser(satisfy(_ == 'a') *> 'b', "aaaaaa")
+        var res = runParser(satisfy[Char](_ == 'a') *> 'b', "aaaaaa")
         res shouldBe a [Failure]
         res match
         {
@@ -215,7 +215,7 @@ class CoreTests extends ParsleyTest
 
     "subroutines" should "function correctly" in
     {
-        val p = satisfy(_ => true) *> satisfy(_ => true) *> satisfy(_ => true)
+        val p = satisfy[Any](_ => true) *> satisfy[Any](_ => true) *> satisfy[Any](_ => true)
         runParser('a' *> +p <* 'b' <* +p <* 'c', "a123b123c") should be (Success('3'))
     }
 }

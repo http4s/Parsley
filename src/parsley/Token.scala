@@ -1,6 +1,6 @@
 package parsley
 
-import parsley.Char.{digit, hexDigit, octDigit, satisfy}
+import parsley.Char.{digit, hexDigit, octDigit}
 import parsley.Combinator._
 import parsley.ContOps._
 import parsley.DeepToken.Sign._
@@ -231,12 +231,12 @@ final class TokenParser(lang: LanguageDef)
 
     private lazy val escapeCode = new DeepToken.Escape
     private lazy val charEscape = '\\' *> escapeCode
-    private lazy val charLetter = satisfy(c => (c != '\'') && (c != '\\') && (c > '\u0016'))
+    private lazy val charLetter = satisfy[Char](c => (c != '\'') && (c != '\\') && (c > '\u0016'))
     private lazy val characterChar = (charLetter <|> charEscape) ? "literal character"
 
     private val escapeEmpty = '&'
     private lazy val escapeGap = skipSome(space) *> '\\' ? "end of string gap"
-    private lazy val stringLetter = satisfy(c => (c != '"') && (c != '\\') && (c > '\u0016'))
+    private lazy val stringLetter = satisfy[Char](c => (c != '"') && (c != '\\') && (c > '\u0016'))
     private lazy val stringEscape: Parsley[Char, Option[Char]] =
     {
         '\\' *> (escapeGap #> None
@@ -277,8 +277,8 @@ final class TokenParser(lang: LanguageDef)
     lazy val naturalOrFloat: Parsley[Char, Either[Int, Double]] = lexeme(natFloat) ? "unsigned number"
 
     private lazy val decimal_ = number(10, digit)
-    private lazy val hexadecimal_ = satisfy(c => c == 'x' || c == 'X') *> number(16, hexDigit)
-    private lazy val octal_ = satisfy(c => c == 'o' || c == 'O') *> number(8, octDigit)
+    private lazy val hexadecimal_ = satisfy[Char](c => c == 'x' || c == 'X') *> number(16, hexDigit)
+    private lazy val octal_ = satisfy[Char](c => c == 'o' || c == 'O') *> number(8, octDigit)
 
     // Floats
     private def sign(ty: SignType) = new DeepToken.Sign[ty.resultType](ty)

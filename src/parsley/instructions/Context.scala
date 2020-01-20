@@ -3,7 +3,7 @@ package parsley.instructions
 import Stack._
 import parsley.{Failure, Result, Success, UnsafeOption}
 
-import scala.annotation.tailrec
+import scala.annotation.{switch, tailrec}
 
 // Private internals
 private [instructions] final class Frame(val ret: Int, val instrs: Array[Instr])
@@ -20,7 +20,8 @@ private [instructions] final class State(val offset: Int, val line: Int, val col
 }
 
 final class Context private [parsley] (private [instructions] var instrs: Array[Instr],
-                                       private [instructions] var input: Array[Any])
+                                       private [instructions] var input: Array[Any],
+                                       private [instructions] var posExtract: Option[Any => (Int, Int)])
 {
     private [instructions] val stack: ArrayStack[Any] = new ArrayStack()
     private [instructions] var offset: Int = 0
@@ -48,6 +49,8 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
     private [instructions] var startline: Int = 1
     private [instructions] var startcol: Int = 1
     var sourceName: String = "input"
+    private [instructions] var posUpdate = makePosUpdate
+    private [instructions] var posUpdate_? = makePosUpdate_?
 
     private [instructions] def pretty: String =
     {
@@ -139,7 +142,7 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
             erroffset = offset
             errcol = col
             errline = line
-            unexpected = if (offset < inputsz) "\"" + nextChar + "\"" else "end of " + sourceName
+            unexpected = if (offset < inputsz) "\"" + nextTok + "\"" else "end of " + sourceName
             expected = (if (errorOverride == null) e else errorOverride)::Nil
             raw = Nil
             unexpectAnyway = false
@@ -159,11 +162,11 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
         val expectedFlat = expected.flatMap(Option(_))
         val expectedStr = if (expectedFlat.isEmpty) None else Some(s"expected ${expectedFlat.distinct.reverse.mkString(" or ")}")
         val rawStr = if (raw.isEmpty) None else Some(raw.distinct.reverse.mkString(" or "))
-        if (rawStr.isEmpty && expectedStr.isEmpty && unexpectAnyway) 
+        if (rawStr.isEmpty && expectedStr.isEmpty && unexpectAnyway)
         {
             s"$posStr\n  ${unexpectedStr.getOrElse("unknown parse error")}"
         }
-        else if (rawStr.isEmpty && expectedStr.isEmpty) 
+        else if (rawStr.isEmpty && expectedStr.isEmpty)
         {
             s"$posStr\n  unknown parse error"
         }
@@ -178,14 +181,18 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
     }
 
     private [instructions] def inc(): Unit = pc += 1
+    private [instructions] def nextTok: Any = input(offset)
     private [instructions] def nextChar: Char = input(offset).asInstanceOf[Char]
     private [instructions] def moreInput: Boolean = offset < inputsz
     
     // Allows us to reuse a context, helpful for benchmarking and potentially user applications
-    private [parsley] def apply(_instrs: Array[Instr], _input: Array[Any]): Context =
+    private [parsley] def apply(_instrs: Array[Instr], _input: Array[Any], _posExtract: Option[Any => (Int, Int)]): Context =
     {
         instrs = _instrs
         input = _input
+        posExtract = _posExtract
+        posUpdate = makePosUpdate
+        posUpdate_? = makePosUpdate_?
         stack.clear()
         offset = 0
         inputsz = input.length
@@ -210,4 +217,20 @@ final class Context private [parsley] (private [instructions] var instrs: Array[
         debuglvl = 0
         this
     }
+
+    private def makePosUpdate: Any => Unit = posExtract match
+    {
+        case None => c => (c.asInstanceOf[Char]: @switch) match
+        {
+            case '\n' => line += 1; col = 1
+            case '\t' => col += 4 - ((col - 1) & 3)
+            case _ => col += 1
+        }
+        case Some(f) => tok =>
+            val (line, col) = f(tok)
+            this.line = line
+            this.col = col
+    }
+
+    private def makePosUpdate_? : (=>Unit, Any) => Unit = if (posExtract.isDefined) (_, tok) => posUpdate(tok) else (orElse, _) => orElse
 }

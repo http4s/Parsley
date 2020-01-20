@@ -27,13 +27,13 @@ private [parsley] final class Exchange[A](private [Exchange] val x: A) extends I
     override def toString: String = s"Ex($x)"
 }
 
-private [parsley] class Newline(_expected: UnsafeOption[String]) extends CharTok('\n', _expected)
+private [parsley] class Newline(_expected: UnsafeOption[String]) extends Token('\n', _expected)
 {
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == '\n')
+        if (ctx.moreInput && ctx.nextTok == '\n')
         {
-            ctx.stack.push(ac)
+            ctx.stack.push(t)
             ctx.offset += 1
             ctx.col = 1
             ctx.line += 1
@@ -43,13 +43,13 @@ private [parsley] class Newline(_expected: UnsafeOption[String]) extends CharTok
     }
 }
 
-private [parsley] class Tab(_expected: UnsafeOption[String]) extends CharTok('\t', _expected)
+private [parsley] class Tab(_expected: UnsafeOption[String]) extends Token('\t', _expected)
 {
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == '\t')
+        if (ctx.moreInput && ctx.nextTok == '\t')
         {
-            ctx.stack.push(ac)
+            ctx.stack.push(t)
             ctx.offset += 1
             ctx.col += 4 - ((ctx.col - 1) & 3)
             ctx.inc()
@@ -58,13 +58,14 @@ private [parsley] class Tab(_expected: UnsafeOption[String]) extends CharTok('\t
     }
 }
 
-private [parsley] class CharTokFastPerform protected (protected final val c: Char, protected final val f: Char => Any, _expected: UnsafeOption[String]) extends Instr
+//FIXME
+private [parsley] class CharTokFastPerform protected (protected final val c: Any, protected final val f: Any => Any, _expected: UnsafeOption[String]) extends Instr
 {
     protected val expected: String = if (_expected == null) "\"" + c.toString + "\"" else _expected
     protected final val fc: Any = f(c)
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == c)
+        if (ctx.moreInput && ctx.nextTok == c)
         {
             ctx.stack.push(fc)
             ctx.offset += 1
@@ -76,11 +77,12 @@ private [parsley] class CharTokFastPerform protected (protected final val c: Cha
     override final def toString: String = s"ChrPerform($c, ?)"
 }
 
-private [parsley] final class NewlineFastPerform(g: Char => Any, _expected: UnsafeOption[String]) extends CharTokFastPerform('\n', g, _expected)
+//FIXME
+private [parsley] final class NewlineFastPerform(g: Any => Any, _expected: UnsafeOption[String]) extends CharTokFastPerform('\n', g, _expected)
 {
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == '\n')
+        if (ctx.moreInput && ctx.nextTok == '\n')
         {
             ctx.stack.push(fc)
             ctx.offset += 1
@@ -92,11 +94,12 @@ private [parsley] final class NewlineFastPerform(g: Char => Any, _expected: Unsa
     }
 }
 
-private [parsley] final class TabFastPerform(g: Char => Any, _expected: UnsafeOption[String]) extends CharTokFastPerform('\t', g, _expected)
+//FIXME
+private [parsley] final class TabFastPerform(g: Any => Any, _expected: UnsafeOption[String]) extends CharTokFastPerform('\t', g, _expected)
 {
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == '\t')
+        if (ctx.moreInput && ctx.nextTok == '\t')
         {
             ctx.stack.push(fc)
             ctx.offset += 1
@@ -107,6 +110,7 @@ private [parsley] final class TabFastPerform(g: Char => Any, _expected: UnsafeOp
     }
 }
 
+//FIXME
 private [parsley] final class StringTokFastPerform(s: String, f: String => Any, _expected: UnsafeOption[String]) extends Instr
 {
     protected val expected: String = if (_expected == null) "\"" + s + "\"" else _expected
@@ -170,18 +174,19 @@ private [parsley] final class StringTokFastPerform(s: String, f: String => Any, 
     override def toString: String = s"StrPerform($s, ?)"
 }
 
-private [parsley] final class SatisfyExchange[A](f: Char => Boolean, x: A, expected: UnsafeOption[String]) extends Instr
+//FIXME
+private [parsley] final class SatisfyExchange[A](f: Any => Boolean, x: A, expected: UnsafeOption[String]) extends Instr
 {
     override def apply(ctx: Context): Unit =
     {
         if (ctx.moreInput)
         {
-            val c = ctx.nextChar
-            if (f(ctx.nextChar))
+            val c = ctx.nextTok
+            if (f(ctx.nextTok))
             {
                 ctx.stack.push(x)
                 ctx.offset += 1
-                (c: @switch) match
+                c match
                 {
                     case '\n' => ctx.line += 1; ctx.col = 1
                     case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
@@ -263,6 +268,7 @@ private [parsley] final class AlwaysRecoverWith[A](x: A) extends Instr
     override def toString: String = s"AlwaysRecover($x)"
 }
 
+//FIXME, can't use LongMap anymore
 private [parsley] final class JumpTable(prefixes: List[Char], labels: List[Int], private [this] var default: Int, _expecteds: List[UnsafeOption[String]]) extends Instr
 {
     private [this] var defaultPreamble: Int = _
@@ -273,7 +279,7 @@ private [parsley] final class JumpTable(prefixes: List[Char], labels: List[Int],
     {
         if (ctx.moreInput)
         {
-            val dest = jumpTable.getOrElseUpdate(ctx.nextChar, default)
+            val dest = jumpTable.getOrElseUpdate(ctx.nextTok.asInstanceOf[Char], default)
             ctx.pc = dest
             if (dest == default) addErrors(ctx)
             else
@@ -296,7 +302,7 @@ private [parsley] final class JumpTable(prefixes: List[Char], labels: List[Int],
             ctx.erroffset = ctx.offset
             ctx.errcol = ctx.col
             ctx.errline = ctx.line
-            ctx.unexpected = if (ctx.offset < ctx.inputsz) "\"" + ctx.nextChar + "\"" else "end of input"
+            ctx.unexpected = if (ctx.offset < ctx.inputsz) "\"" + ctx.nextTok + "\"" else "end of input"
             ctx.expected = if (ctx.errorOverride == null) expecteds else ctx.errorOverride::Nil
             ctx.raw = Nil
             ctx.unexpectAnyway = false
@@ -319,11 +325,11 @@ private [parsley] final class JumpTable(prefixes: List[Char], labels: List[Int],
 
 private [parsley] object CharTokFastPerform
 {
-    def apply[A >: Char, B](c: Char, f: A => B, expected: UnsafeOption[String]): CharTokFastPerform = (c: @switch) match
+    def apply[A, B](c: A, f: A => B, expected: UnsafeOption[String]): CharTokFastPerform = c match
     {
-        case '\n' => new NewlineFastPerform(f, expected)
-        case '\t' => new TabFastPerform(f, expected)
-        case _ => new CharTokFastPerform(c, f, expected)
+        case '\n' => new NewlineFastPerform(f.asInstanceOf[Any => Any], expected)
+        case '\t' => new TabFastPerform(f.asInstanceOf[Any => Any], expected)
+        case _ => new CharTokFastPerform(c, f.asInstanceOf[Any => Any], expected)
     }
 }
 

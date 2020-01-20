@@ -40,41 +40,39 @@ private [parsley] object Flip extends Instr
 }
 
 // Primitives
-private [parsley] class CharTok protected (protected final val c: Char, _expected: UnsafeOption[String]) extends Instr
+private [parsley] class Token protected(protected final val t: Any, _expected: UnsafeOption[String]) extends Instr
 {
-    protected val expected: String = if (_expected == null) "\"" + c + "\"" else _expected
-    protected final val ac: Any = c
+    protected val expected: String = if (_expected == null) t match
+    {
+        case c: Char => "\"" + c + "\""
+        case _ => t.toString
+    } else _expected
     override def apply(ctx: Context): Unit =
     {
-        if (ctx.moreInput && ctx.nextChar == c)
+        if (ctx.moreInput && ctx.nextTok == t)
         {
-                ctx.stack.push(ac)
+                ctx.stack.push(t)
                 ctx.offset += 1
-                ctx.col += 1
+                ctx.posUpdate_?(ctx.col += 1, t)
                 ctx.inc()
         }
         else ctx.fail(expected)
     }
-    override final def toString: String = s"Chr($c)"
+    override final def toString: String = s"Tok($t)"
 }
 
-private [parsley] final class Satisfies(f: Char => Boolean, expected: UnsafeOption[String]) extends Instr
+private [parsley] final class Satisfies(f: Any => Boolean, expected: UnsafeOption[String]) extends Instr
 {
     override def apply(ctx: Context): Unit =
     {
         if (ctx.moreInput)
         {
-            val c = ctx.nextChar
-            if (f(ctx.nextChar))
+            val c = ctx.nextTok
+            if (f(ctx.nextTok))
             {
                 ctx.stack.push(c)
                 ctx.offset += 1
-                (c: @switch) match
-                {
-                    case '\n' => ctx.line += 1; ctx.col = 1
-                    case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
-                    case _ => ctx.col += 1
-                }
+                ctx.posUpdate(c)
                 ctx.inc()
             }
             else ctx.fail(expected)
@@ -84,6 +82,7 @@ private [parsley] final class Satisfies(f: Char => Boolean, expected: UnsafeOpti
     override def toString: String = "Sat(?)"
 }
 
+//FIXME
 private [parsley] final class StringTok(s: String, _expected: UnsafeOption[String]) extends Instr
 {
     private [this] val expected = if (_expected == null) "\"" + s + "\"" else _expected
@@ -106,7 +105,7 @@ private [parsley] final class StringTok(s: String, _expected: UnsafeOption[Strin
         if (line > 0) ((_: Int) => col, (x: Int) => x + line)
         else (tabprefix match
         {
-            case Some(prefix) => 
+            case Some(prefix) =>
                 val outer = 4 + col + prefix
                 val inner = prefix - 1
                 (x: Int) => outer + x - ((x + inner) & 3)
@@ -122,7 +121,7 @@ private [parsley] final class StringTok(s: String, _expected: UnsafeOption[Strin
         var j = 0
         val cs = this.cs
         if (inputsz != i)
-        { 
+        {
             while (j < strsz)
             {
                 val c = cs(j)
@@ -270,7 +269,7 @@ private [parsley] final class Unexpected(msg: String, expected: UnsafeOption[Str
 
 private [parsley] final class Empty(expected: UnsafeOption[String]) extends Instr
 {
-    override def apply(ctx: Context): Unit = 
+    override def apply(ctx: Context): Unit =
     {
         val strip = ctx.expected.isEmpty
         ctx.fail(expected)
@@ -548,12 +547,12 @@ private [parsley] final class LogEnd(val name: String, break: Boolean) extends I
 }
 
 // Extractor Objects
-private [parsley] object CharTok
+private [parsley] object Token
 {
-    def apply(c: Char, expected: UnsafeOption[String]): CharTok = (c: @switch) match
+    def apply[Tok](t: Tok, expected: UnsafeOption[String]): Token = t match
     {
         case '\n' => new Newline(expected)
         case '\t' => new Tab(expected)
-        case _ => new CharTok(c, expected)
+        case _ => new Token(t.asInstanceOf[Any], expected)
     }
 }

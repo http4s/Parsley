@@ -401,6 +401,32 @@ object Parsley
       * @return The parser that performs `p` with the modified state
       */
     def local[Tok, R, A](v: Var, f: R => R, p: =>Parsley[Tok, A]): Parsley[Tok, A] = local(v, get[R](v).map(f), p)
+    /** Reads a character from the head of the input stream if and only if it satisfies the given predicate. Else it
+      * fails without consuming the character.
+      * @param f The function to test the character on
+      * @return `c` if `f(c)` is true.
+      */
+    def satisfy[Tok](f: Tok => Boolean): Parsley[Tok, Tok] = new DeepEmbedding.Satisfy(f)
+    /** Reads a token from the input stream and returns it, else fails if the token is not found at the head
+      * of the stream.
+      * @param t The token to search for
+      * @return `t` if it can be found at the head of the input
+      */
+    def token[Tok](t: Tok): Parsley[Tok, Tok] = new DeepEmbedding.CharTok(t)
+    /**`oneOf(ts)` succeeds if the current token is in the supplied sequence of tokens `ts`.
+      * Returns the parsed token. See also `satisfy`.*/
+    def oneOf[Tok](ts: Set[Tok]): Parsley[Tok, Tok] = satisfy(ts.contains)
+    /**As the dual of `oneOf`, `noneOf(ts)` succeeds if the current token is not in the supplied
+      * sequence of tokens `ts`. Returns the parsed token.*/
+    def noneOf[Tok](ts: Set[Tok]): Parsley[Tok, Tok] = satisfy(!ts.contains(_))
+    /**`oneOf(ts)` succeeds if the current token is in the supplied sequence of tokens `ts`.
+      * Returns the parsed token. See also `satisfy`.*/
+    def oneOf[Tok](ts: Tok*): Parsley[Tok, Tok] = oneOf(ts.toSet)
+    /**As the dual of `oneOf`, `noneOf(ts)` succeeds if the current token is not in the supplied
+      * sequence of tokens `ts`. Returns the parsed token.*/
+    def noneOf[Tok](ts: Tok*): Parsley[Tok, Tok] = noneOf(ts.toSet)
+    /**The parser `item` accepts any kind of token. Returns the accepted token.*/
+    def item[Tok]: Parsley[Tok, Tok] = satisfy[Tok](_ => true) ? "any token"
 }
 
 // Internals
@@ -710,7 +736,7 @@ private [parsley] object DeepEmbedding
             // pure f <*> p = f <$> p
             case Pure(f) => px match
             {
-                case ct@CharTok(c) => result(instrs += instructions.CharTokFastPerform[Char, B](c, f.asInstanceOf[Char => B], ct.expected))
+                case ct@CharTok(c) => result(instrs += instructions.CharTokFastPerform[Tok, B](c.asInstanceOf[Tok], f.asInstanceOf[Tok => B], ct.expected))
                 case st@StringTok(s) => result(instrs += new instructions.StringTokFastPerform(s, f.asInstanceOf[String => B], st.expected))
                 case _ =>
                     px.codeGen |>
@@ -881,7 +907,7 @@ private [parsley] object DeepEmbedding
             case (root, Some(lead))::tablified_ =>
                 val (c, expected) = lead match
                 {
-                    case ct@CharTok(d) => (d, ct.expected)
+                    //case ct@CharTok(d) => (d, ct.expected) //TODO What do we do about this?
                     case st@StringTok(s) => (s.head, if (st.expected == null) "\"" + s + "\"" else st.expected)
                     case kw@Keyword(k) => (k.head, if (kw.expected == null) k else kw.expected)
                     case op@Operator(o) => (o.head, if (op.expected == null) o else op.expected)
@@ -904,7 +930,7 @@ private [parsley] object DeepEmbedding
         @tailrec private def tablable(p: Parsley[Tok, _]): Option[Parsley[Tok, _]] = p match
         {
             // CODO: Numeric parsers by leading digit (This one would require changing the foldTablified function a bit)
-            case t@(_: CharTok | _: StringTok | _: Keyword | _: StringLiteral | _: RawStringLiteral | _: Operator | _: MaxOp) => Some(t)
+            case t@(/*_: CharTok |*/ _: StringTok | _: Keyword | _: StringLiteral | _: RawStringLiteral | _: Operator | _: MaxOp) => Some(t)
             case Attempt(t) => tablable(t)
             case (_: Pure[_]) <*> t => tablable(t)
             case Lift2(_, t, _) => tablable(t)
@@ -963,9 +989,9 @@ private [parsley] object DeepEmbedding
             (instrs += new instructions.DynCall[A](x => f(x).instrs, expected))
         }
     }
-    private [parsley] final class Satisfy(private [Satisfy] val f: Char => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
+    private [parsley] final class Satisfy[Tok](private [Satisfy] val f: Tok => Boolean, val expected: UnsafeOption[String] = null) extends Parsley[Tok, Tok]
     {
-        override def preprocess[Cont[_, _], Tok_ <: Char, C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, C]] =
+        override def preprocess[Cont[_, _], Tok_ <: Tok, Tok__ >: Tok](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, Tok__]] =
         {
             if (label == null) result(this)
             else result(new Satisfy(f, label))
@@ -973,7 +999,7 @@ private [parsley] object DeepEmbedding
         override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
-            result(instrs += new instructions.Satisfies(f, expected))
+            result(instrs += new instructions.Satisfies(f.asInstanceOf[Any => Boolean], expected))
         }
     }
     private [parsley] abstract class Cont[Tok, A, +B] extends Parsley[Tok, B]
@@ -1008,7 +1034,7 @@ private [parsley] object DeepEmbedding
             case u *> (_: Pure[_]) =>
                 p = u.asInstanceOf[Parsley[Tok, A]]
                 optimise
-            case CharTok(c) if q.isInstanceOf[CharTok] || q.isInstanceOf[StringTok] => q match
+            /*case CharTok(c) if q.isInstanceOf[CharTok] || q.isInstanceOf[StringTok] => q match
             {
                 // char(c) *> char(d) = string(cd) *> pure(d)
                 case CharTok(d) =>
@@ -1020,8 +1046,8 @@ private [parsley] object DeepEmbedding
                     p = new StringTok(c.toString + s).asInstanceOf[Parsley[Tok, A]]
                     q = new Pure(s).asInstanceOf[Parsley[Tok, B]]
                     optimise
-            }
-            case StringTok(s) if q.isInstanceOf[CharTok] || q.isInstanceOf[StringTok] => q match
+            }*/
+            case StringTok(s) if /*q.isInstanceOf[CharTok] ||*/ q.isInstanceOf[StringTok] => q match
             {
                 // string(s) *> char(c) = string(sc) *> pure(c)
                 case CharTok(c) =>
@@ -1050,9 +1076,9 @@ private [parsley] object DeepEmbedding
         {
             case Pure(x) => p match
             {
-                case ct@CharTok(c) => ops.wrap(instrs += instructions.CharTokFastPerform[Char, B](c, _ => x, ct.expected))
+                case ct@CharTok(c) => ops.wrap(instrs += instructions.CharTokFastPerform[Any, B](c, _ => x, ct.expected))
                 case st@StringTok(s) => ops.wrap(instrs += new instructions.StringTokFastPerform(s, _ => x, st.expected))
-                case st@Satisfy(f) => ops.wrap(instrs += new instructions.SatisfyExchange(f, x, st.expected))
+                case st@Satisfy(f) => ops.wrap(instrs += new instructions.SatisfyExchange(f.asInstanceOf[Any => Boolean], x, st.expected))
                 case u =>
                     u.codeGen |>
                     (instrs += new instructions.Exchange(x))
@@ -1094,14 +1120,14 @@ private [parsley] object DeepEmbedding
             case v *> (_: Pure[_]) =>
                 q = v.asInstanceOf[Parsley[Tok, B]]
                 optimise
-            case CharTok(d) if p.isInstanceOf[CharTok] || p.isInstanceOf[StringTok] => p match
+            /*case CharTok(d) if p.isInstanceOf[CharTok] || p.isInstanceOf[StringTok] => p match
             {
                 // char(c) <* char(d) = string(cd) *> pure(c)
                 case CharTok(c) => *>(new StringTok(c.toString + d), new Pure(c)).asInstanceOf[Parsley[Tok, A]]
                 // string(s) <* char(d) = string(sd) *> pure(s)
                 case StringTok(s) => *>(new StringTok(s + d), new Pure(s)).asInstanceOf[Parsley[Tok, A]]
-            }
-            case StringTok(t) if p.isInstanceOf[CharTok] || p.isInstanceOf[StringTok]  => p match
+            }*/
+            case StringTok(t) if /*p.isInstanceOf[CharTok] || */p.isInstanceOf[StringTok]  => p match
             {
                 // char(c) <* string(t) = string(ct) *> pure(c)
                 case CharTok(c) => *>(new StringTok(c.toString + t), new Pure(c)).asInstanceOf[Parsley[Tok, A]]
@@ -1126,9 +1152,9 @@ private [parsley] object DeepEmbedding
         }
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] = (p, q) match
         {
-            case (Pure(x), ct@CharTok(c)) => ops.wrap(instrs += instructions.CharTokFastPerform[Char, A](c, _ => x, ct.expected))
+            case (Pure(x), ct@CharTok(c)) => ops.wrap(instrs += instructions.CharTokFastPerform[Any, A](c, _ => x, ct.expected))
             case (Pure(x), st@StringTok(s)) => ops.wrap(instrs += new instructions.StringTokFastPerform(s, _ => x, st.expected))
-            case (Pure(x), st@Satisfy(f)) => ops.wrap(instrs += new instructions.SatisfyExchange(f, x, st.expected))
+            case (Pure(x), st@Satisfy(f)) => ops.wrap(instrs += new instructions.SatisfyExchange(f.asInstanceOf[Any => Boolean], x, st.expected))
             case (Pure(x), v) =>
                 v.codeGen |>
                 (instrs += new instructions.Exchange(x))
@@ -1274,17 +1300,17 @@ private [parsley] object DeepEmbedding
         }
     }
     // Intrinsic Embedding
-    private [parsley] final class CharTok(private [CharTok] val c: Char, val expected: UnsafeOption[String] = null) extends Parsley[Char, Char]
+    private [parsley] final class CharTok[Tok](private [CharTok] val t: Tok, val expected: UnsafeOption[String] = null) extends Parsley[Tok, Tok]
     {
-        override def preprocess[Cont[_, _], Tok_ <: Char, C >: Char](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, C]] =
+        override def preprocess[Cont[_, _], Tok_ <: Tok, Tok__ >: Tok](implicit seen: Set[Parsley[_, _]], sub: SubMap, label: UnsafeOption[String], ops: ContOps[Cont]): Cont[Parsley[_, _], Parsley[Tok_, Tok__]] =
         {
             if (label == null) result(this)
-            else result(new CharTok(c, label))
+            else result(new CharTok(t, label))
         }
         override def findLetsAux[Cont[_, _]](implicit seen: Set[Parsley[_, _]], state: LetFinderState, ops: ContOps[Cont]): Cont[Unit, Unit] = result(())
         override def codeGen[Cont[_, _]](implicit instrs: InstrBuffer, state: CodeGenState, ops: ContOps[Cont]): Cont[Unit, Unit] =
         {
-            result(instrs += instructions.CharTok(c, expected))
+            result(instrs += instructions.Token(t, expected))
         }
     }
     private [parsley] final class StringTok(private [StringTok] val s: String, val expected: UnsafeOption[String] = null) extends Parsley[Char, String]
@@ -2076,7 +2102,7 @@ private [parsley] object DeepEmbedding
     }
     private [DeepEmbedding] object CharTok
     {
-        def unapply(self: CharTok): Option[Char] = Some(self.c)
+        def unapply[Tok](self: CharTok[Tok]): Option[Tok] = Some(self.t)
     }
     private [DeepEmbedding] object StringTok
     {
@@ -2084,7 +2110,7 @@ private [parsley] object DeepEmbedding
     }
     private [DeepEmbedding] object Satisfy
     {
-        def unapply(self: Satisfy): Option[Char => Boolean] = Some(self.f)
+        def unapply[Tok](self: Satisfy[Tok]): Option[Tok => Boolean] = Some(self.f)
     }
     private [DeepEmbedding] object Lift2
     {
@@ -2299,5 +2325,16 @@ private [parsley] object DeepEmbedding
             res.size = p.size + 2
             res
         }
+    }
+}
+
+object TokTest
+{
+    import Parsley._
+    def main(args: Array[String]): Unit =
+    {
+        val p: Parsley[Int, (Int, Int)] = oneOf((0 to 10).toSet) ? "1 to 10" *> pos
+        println(runParser(p, Array(7), Some((x: Int) => (1, 1 + ((Math.log(x) + 1)/Math.log(10)).toInt))))
+        println(runParser(p,  Array.empty[Int], Some((_: Int) => (100, 100))))
     }
 }
