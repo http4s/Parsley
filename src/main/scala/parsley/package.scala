@@ -1,3 +1,5 @@
+package org.http4s
+
 import parsley.instructions.Context
 
 import scala.annotation.{implicitAmbiguous, tailrec}

@@ -1,3 +1,4 @@
+package org.http4s
 package parsley
 
 import parsley.Char.{digit, hexDigit, octDigit, satisfy}

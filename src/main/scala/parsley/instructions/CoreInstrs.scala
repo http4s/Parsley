@@ -1,3 +1,4 @@
+package org.http4s
 package parsley.instructions
 
 import Stack.{isEmpty, push}

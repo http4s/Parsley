@@ -1,3 +1,5 @@
+package org.http4s
+
 import parsley.Char.digit
 import parsley.Implicits.{charLift, stringLift}
 import parsley.Combinator.{chainPost, chainPre, chainl1, chainr1}

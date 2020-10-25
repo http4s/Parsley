@@ -1,3 +1,4 @@
+package org.http4s
 package parsley
 
 import scala.language.{higherKinds, reflectiveCalls}

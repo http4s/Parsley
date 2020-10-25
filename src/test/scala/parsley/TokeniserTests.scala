@@ -1,3 +1,5 @@
+package org.http4s
+
 import parsley._
 import parsley.Char.{alphaNum, letter, whitespace, oneOf => inSet}
 import parsley.Implicits.charLift

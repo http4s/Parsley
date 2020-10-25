@@ -1,3 +1,5 @@
+package org.http4s
+
 import parsley.Combinator.eof
 import parsley.Parsley._
 import parsley.{Failure, Parsley, runParser}

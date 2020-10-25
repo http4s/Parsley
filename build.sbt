@@ -7,6 +7,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 lazy val root = project.in(file("."))
   .settings(
     name := projectName,
+    organization := "org.http4s",
     version := parsleyVersion,
     target in Compile in doc := baseDirectory.value / "docs",
 

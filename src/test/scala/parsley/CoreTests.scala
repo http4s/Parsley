@@ -1,3 +1,5 @@
+package org.http4s
+
 import parsley.{Failure, Parsley, Success, Var, runParser}
 import parsley.Parsley._
 import parsley.Char.{char, satisfy}
