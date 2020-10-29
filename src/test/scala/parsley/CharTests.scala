@@ -1,4 +1,5 @@
 package org.http4s
+package parsley
 
 import parsley.Char._
 import parsley.{Failure, runParser}

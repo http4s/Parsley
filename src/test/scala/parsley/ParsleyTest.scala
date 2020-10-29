@@ -1,5 +1,8 @@
 package org.http4s
+package parsley
 
-import org.scalatest.{Assertions, Matchers, FlatSpec}
+import org.scalatest.Assertions
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-abstract class ParsleyTest extends FlatSpec with Matchers with Assertions
+abstract class ParsleyTest extends AnyFlatSpec with Matchers with Assertions

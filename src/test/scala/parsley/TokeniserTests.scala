@@ -1,4 +1,5 @@
 package org.http4s
+package parsley
 
 import parsley._
 import parsley.Char.{alphaNum, letter, whitespace, oneOf => inSet}

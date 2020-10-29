@@ -1,4 +1,5 @@
 package org.http4s
+package parsley
 
 import parsley.Combinator.eof
 import parsley.Parsley._
