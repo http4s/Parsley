@@ -47,7 +47,7 @@ private [parsley] class TokenSkipComments(start: String, end: String, line: Stri
         ctx.col += line.length
         while (ctx.moreInput && ctx.nextChar != '\n')
         {
-            (ctx.nextChar: @switch) match
+            ctx.nextChar match
             {
                 case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
                 case _ => ctx.col += 1
@@ -77,7 +77,7 @@ private [parsley] class TokenSkipComments(start: String, end: String, line: Stri
             }
             else if (ctx.moreInput)
             {
-                (ctx.nextChar: @switch) match
+                ctx.nextChar match
                 {
                     case '\n' => ctx.line += 1; ctx.col = 1
                     case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
@@ -149,11 +149,7 @@ private [parsley] final class TokenComment(start: String, end: String, line: Str
         ctx.col += line.length
         while (ctx.moreInput && ctx.nextChar != '\n')
         {
-            (ctx.nextChar: @switch) match
-            {
-                case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
-                case _ => ctx.col += 1
-            }
+            ctx.col += (if (ctx.nextChar == '\t') 4 - ((ctx.col - 1) & 3) else 1)
             ctx.offset += 1
         }
     }
@@ -179,7 +175,7 @@ private [parsley] final class TokenComment(start: String, end: String, line: Str
             }
             else if (ctx.moreInput)
             {
-                (ctx.nextChar: @switch) match
+                ctx.nextChar match
                 {
                     case '\n' => ctx.line += 1; ctx.col = 1
                     case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
@@ -247,7 +243,7 @@ private [parsley] final class TokenWhiteSpace(ws: TokenSet, start: String, end: 
     {
         while (ctx.moreInput && ws(ctx.nextChar))
         {
-            (ctx.nextChar: @switch) match
+            ctx.nextChar match
             {
                 case '\n' => ctx.line += 1; ctx.col = 1
                 case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
@@ -497,7 +493,7 @@ private [parsley] final class TokenFloat(_expected: UnsafeOption[String]) extend
     {
         if (ctx.moreInput)
         {
-            (ctx.nextChar: @switch) match
+            ctx.nextChar match
             {
                 case '+' =>
                     ctx.offset += 1
@@ -902,7 +898,7 @@ private [parsley] final class TokenString(ws: TokenSet, _expected: UnsafeOption[
 
     @tailrec def restOfString(ctx: Context, builder: StringBuilder): Unit =
     {
-        if (ctx.moreInput) (ctx.nextChar: @switch) match
+        if (ctx.moreInput) ctx.nextChar match
         {
             case '"' =>
                 ctx.offset += 1
@@ -951,7 +947,7 @@ private [parsley] final class TokenString(ws: TokenSet, _expected: UnsafeOption[
         var n = 0
         while (ctx.moreInput && ws(ctx.nextChar))
         {
-            (ctx.nextChar: @switch) match
+            ctx.nextChar match
             {
                 case '\n' => ctx.line += 1; ctx.col = 1
                 case '\t' => ctx.col += 4 - ((ctx.col - 1) & 3)
@@ -986,7 +982,7 @@ private [parsley] final class TokenRawString(_expected: UnsafeOption[String]) ex
 
     @tailrec def restOfString(ctx: Context, builder: StringBuilder): Unit =
     {
-        if (ctx.moreInput) (ctx.nextChar: @switch) match
+        if (ctx.moreInput) ctx.nextChar match
         {
             case '"' =>
                 ctx.offset += 1
