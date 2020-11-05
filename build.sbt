@@ -30,7 +30,7 @@ lazy val core = project.in(file("core"))
   )
 
 lazy val bench = project
-  .enablePlugins(JmhPlugin)
+  // .enablePlugins(JmhPlugin)
   .settings(
     name := "bench",
     crossScalaVersions := (ThisBuild / crossScalaVersions).value.filterNot(_.startsWith("0.")),

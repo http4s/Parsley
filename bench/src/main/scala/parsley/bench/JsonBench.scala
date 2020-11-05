@@ -1,24 +1,24 @@
 package parsley.bench
 
 import java.util.concurrent.TimeUnit
-import org.openjdk.jmh.annotations._
+// import org.openjdk.jmh.annotations._
 import org.typelevel.jawn.ast._
 import parsley._, Combinator._, Parsley._
 import scala.io.Source
 
 /* Based on https://github.com/typelevel/jawn/blob/v1.0.0/benchmark/src/main/scala/jawn/JmhBenchmarks.scala */
-@State(Scope.Benchmark)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+// @State(Scope.Benchmark)
+// @BenchmarkMode(Array(Mode.AverageTime))
+// @OutputTimeUnit(TimeUnit.MILLISECONDS)
 abstract class JmhBenchmarks(name: String) {
   val text: String =
     Source.fromResource(name, getClass.getClassLoader).getLines().mkString("\n")
 
-  @Benchmark
+  // @Benchmark
   def parsleyParseCold(): JValue =
     runParserThreadSafe(JsonBench.coldJson, text).toOption.get
 
-  @Benchmark
+  // @Benchmark
   def parsleyParseHot(): JValue =
     parsley.runParser(JsonBench.hotJson, text) match {
       case Success(x) => x
@@ -50,6 +50,30 @@ object JsonBench {
     val p = coldJson
     coldJson.force()
     p
+  }
+}
+
+object Concurrent {
+  import scala.concurrent._
+  import scala.concurrent.duration._
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  val text: String =
+    Source.fromResource("countries.geo.json", getClass.getClassLoader).getLines().mkString("\n")
+
+  def parsleyParseHotConcurrent(): Seq[JValue] = {
+    val futs: Future[Seq[JValue]] = Future.traverse(1 to 16) { _ =>
+      Future(runParser(JsonBench.hotJson, text)).flatMap {
+        case Success(x) => Future.successful(x)
+        case Failure(e) => Future.failed(new Exception(e.toString))
+      }
+    }
+    Await.result(futs, 20.seconds)
+  }
+
+  def main(args: Array[String]) = {
+    parsleyParseHotConcurrent()
+    ()
   }
 }
 
